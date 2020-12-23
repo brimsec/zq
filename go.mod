@@ -28,6 +28,7 @@ require (
 	github.com/pierrec/lz4/v4 v4.1.0
 	github.com/pmezard/go-difflib v1.0.0
 	github.com/prometheus/client_golang v1.7.1
+	github.com/rjeczalik/notify v0.9.2
 	github.com/segmentio/ksuid v1.0.2
 	github.com/stretchr/testify v1.6.1
 	github.com/xitongsys/parquet-go v1.5.3-0.20200514000040-789bba367841

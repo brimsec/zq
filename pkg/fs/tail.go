@@ -8,13 +8,14 @@ import (
 	"path/filepath"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/rjeczalik/notify"
 )
 
 var ErrIsDir = errors.New("path is a directory")
 
 type TFile struct {
-	f       *os.File
-	watcher *fsnotify.Watcher
+	f      *os.File
+	events chan notify.EventInfo
 }
 
 func TailFile(name string) (*TFile, error) {
@@ -29,17 +30,11 @@ func TailFile(name string) (*TFile, error) {
 	if err != nil {
 		return nil, err
 	}
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		f.Close()
+	events := make(chan notify.EventInfo)
+	if err := notify.Watch(name, events, notify.Write); err != nil {
 		return nil, err
 	}
-	if err := watcher.Add(name); err != nil {
-		f.Close()
-		watcher.Close()
-		return nil, err
-	}
-	return &TFile{f, watcher}, nil
+	return &TFile{f, events}, nil
 }
 
 func (t *TFile) Read(b []byte) (int, error) {
@@ -61,23 +56,16 @@ read:
 }
 
 func (t *TFile) waitWrite() error {
-	for {
-		select {
-		case ev, ok := <-t.watcher.Events:
-			if !ok {
-				return io.EOF
-			}
-			if ev.Op == fsnotify.Write {
-				return nil
-			}
-		case err := <-t.watcher.Errors:
-			return err
-		}
+	_, ok := <-t.events
+	if !ok {
+		return io.EOF
 	}
+	return nil
 }
 
-func (t *TFile) Stop() error {
-	return t.watcher.Close()
+func (t *TFile) Stop() {
+	notify.Stop(t.events)
+	close(t.events)
 }
 
 func (t *TFile) Close() error {
