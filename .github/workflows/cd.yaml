@@ -51,7 +51,7 @@ jobs:
           kubectl create ns $namespace || :
           kubectl config set-context --current --namespace=$namespace
           helm uninstall zsrv || :
-          k8s/postgres-secret.sh
+          k8s/generate-srv-secrets.sh
           make helm-install PG_PERSIST=false
           kubectl scale --replicas=4 deployment/zsrv-worker
           kubectl wait --for=condition=Ready --timeout=60s pods/zsrv-postgresql-0
