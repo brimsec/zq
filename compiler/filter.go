@@ -11,6 +11,12 @@ import (
 	"github.com/brimsec/zq/zng/resolver"
 )
 
+//XXX rework this so the compile methods can live off of filter.
+// Filter might need a compiler pointer or at least a scope pointer.
+// Could imagine buffer filter being useful inside of complex expression
+// e.g., looking through large string values or a wide record that is
+// a subfield of the outer record.
+
 var _ zbuf.Filter = (*Filter)(nil)
 
 // Filter wraps an ast.BooleanExpr and implements the zbuf.Filter interface

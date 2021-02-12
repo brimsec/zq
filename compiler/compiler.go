@@ -3,9 +3,32 @@ package compiler
 import (
 	"github.com/brimsec/zq/ast"
 	"github.com/brimsec/zq/pkg/joe"
+	"github.com/brimsec/zq/proc"
 	"github.com/brimsec/zq/zql"
 	"github.com/mitchellh/mapstructure"
 )
+
+type Compiler struct {
+	pctx     *proc.Context
+	scope    *Scope
+	custom   ProcHook
+	ast      ast.Proc
+	semantic ast.Proc
+	parallel ast.Proc
+}
+
+func NewCompiler(pctx *proc.Context, p ast.Proc) *Compiler {
+	return &Compiler{
+		pctx:  pctx,
+		scope: newScope(),
+	}
+}
+
+func NewCustomCompiler(pctx *proc.Context, custom ProcHook, p ast.Proc) *Compiler {
+	c := NewCompiler(pctx, p)
+	c.custom = custom
+	return c
+}
 
 // ParseProc() is an entry point for use from external go code,
 // mostly just a wrapper around Parse() that casts the return value.

@@ -28,7 +28,7 @@ import (
 
 var ErrJoinParents = errors.New("join requires two upstream parallel query paths")
 
-type Hook func(ast.Proc, *proc.Context, proc.Interface) (proc.Interface, error)
+type ProcHook func(ast.Proc, *proc.Context, *Scope, proc.Interface) (proc.Interface, error)
 
 func isContainerProc(node ast.Proc) bool {
 	if _, ok := node.(*ast.SequentialProc); ok {
@@ -40,10 +40,10 @@ func isContainerProc(node ast.Proc) bool {
 	return false
 }
 
-func compileProc(custom Hook, node ast.Proc, pctx *proc.Context, scope *Scope, parent proc.Interface) (proc.Interface, error) {
-	if custom != nil {
+func (c *Compiler) compileProc(node ast.Proc, parent proc.Interface) (proc.Interface, error) {
+	if c.custom != nil {
 		// XXX custom should take scope
-		p, err := custom(node, pctx, parent)
+		p, err := c.custom(node, c.pctx, c.scope, parent)
 		if err != nil {
 			return nil, err
 		}
@@ -53,7 +53,7 @@ func compileProc(custom Hook, node ast.Proc, pctx *proc.Context, scope *Scope, p
 	}
 	switch v := node.(type) {
 	case *ast.GroupByProc:
-		return compileGroupBy(pctx, scope, parent, v)
+		return c.compileGroupBy(parent, v)
 
 	case *ast.CutProc:
 		assignments, err := compileAssignments(v.Fields, pctx.TypeContext, scope)

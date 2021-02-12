@@ -9,26 +9,25 @@ import (
 	"github.com/brimsec/zq/field"
 	"github.com/brimsec/zq/proc"
 	"github.com/brimsec/zq/proc/groupby"
-	"github.com/brimsec/zq/zng/resolver"
 )
 
-func compileGroupBy(pctx *proc.Context, scope *Scope, parent proc.Interface, node *ast.GroupByProc) (*groupby.Proc, error) {
-	keys, err := compileAssignments(node.Keys, pctx.TypeContext, scope)
+func (c *Compiler) compileGroupBy(parent proc.Interface, node *ast.GroupByProc) (*groupby.Proc, error) {
+	keys, err := c.compileAssignments(node.Keys)
 	if err != nil {
 		return nil, err
 	}
-	names, reducers, err := compileAggs(node.Reducers, scope, pctx.TypeContext)
+	names, reducers, err := c.compileAggs(node.Reducers)
 	if err != nil {
 		return nil, err
 	}
-	return groupby.New(pctx, parent, keys, names, reducers, node.Limit, node.InputSortDir, node.ConsumePart, node.EmitPart)
+	return groupby.New(c.pctx, parent, keys, names, reducers, node.Limit, node.InputSortDir, node.ConsumePart, node.EmitPart)
 }
 
-func compileAggs(assignments []ast.Assignment, scope *Scope, zctx *resolver.Context) ([]field.Static, []*expr.Aggregator, error) {
+func (c *Compiler) compileAggs(assignments []ast.Assignment) ([]field.Static, []*expr.Aggregator, error) {
 	names := make([]field.Static, 0, len(assignments))
 	aggs := make([]*expr.Aggregator, 0, len(assignments))
 	for _, assignment := range assignments {
-		name, agg, err := compileAgg(zctx, scope, assignment)
+		name, agg, err := c.compileAgg(assignment)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -38,7 +37,7 @@ func compileAggs(assignments []ast.Assignment, scope *Scope, zctx *resolver.Cont
 	return names, aggs, nil
 }
 
-func compileAgg(zctx *resolver.Context, scope *Scope, assignment ast.Assignment) (field.Static, *expr.Aggregator, error) {
+func (c *Compiler) compileAgg(assignment ast.Assignment) (field.Static, *expr.Aggregator, error) {
 	aggAST, ok := assignment.RHS.(*ast.Reducer)
 	if !ok {
 		return nil, nil, errors.New("aggregator is not an aggregation expression")
@@ -47,7 +46,7 @@ func compileAgg(zctx *resolver.Context, scope *Scope, assignment ast.Assignment)
 	var err error
 	var arg expr.Evaluator
 	if aggAST.Expr != nil {
-		arg, err = compileExpr(zctx, nil, aggAST.Expr)
+		arg, err = c.compileExpr(aggAST.Expr)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -66,7 +65,7 @@ func compileAgg(zctx *resolver.Context, scope *Scope, assignment ast.Assignment)
 	}
 	var where expr.Filter
 	if aggAST.Where != nil {
-		where, err = compileFilter(zctx, scope, aggAST.Where)
+		where, err = c.compileFilter(aggAST.Where)
 		if err != nil {
 			return nil, nil, err
 		}
