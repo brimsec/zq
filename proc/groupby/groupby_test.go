@@ -11,8 +11,9 @@ import (
 	"testing"
 
 	"github.com/brimsec/zq/api"
-	"github.com/brimsec/zq/ast"
 	"github.com/brimsec/zq/compiler"
+	"github.com/brimsec/zq/compiler/ast"
+	"github.com/brimsec/zq/compiler/semantic"
 	"github.com/brimsec/zq/driver"
 	"github.com/brimsec/zq/pkg/test"
 	"github.com/brimsec/zq/proc/groupby"
@@ -376,7 +377,7 @@ func TestGroupbyUnit(t *testing.T) {
 
 			astProc, err := compileGroupBy(zql)
 			assert.NoError(t, err)
-			compiler.ReplaceGroupByProcDurationWithKey(astProc)
+			semantic.Transform(astProc)
 			astProc.InputSortDir = dir
 			tctx := proctest.NewTestContext(resolver)
 			src := proctest.NewTestSource(inBatches)
@@ -492,7 +493,7 @@ func TestGroupbyStreamingSpill(t *testing.T) {
 		zr := tzngio.NewReader(strings.NewReader(strings.Join(data, "\n")), zctx)
 		cr := &countReader{r: zr}
 		var outbuf bytes.Buffer
-		zw, _ := detector.LookupWriter(&nopCloser{&outbuf}, zio.WriterOpts{})
+		zw, _ := detector.LookupWriter(&nopCloser{&outbuf}, zctx, zio.WriterOpts{})
 		d := &testGroupByDriver{
 			writer: zw,
 			cb: func(n int) {

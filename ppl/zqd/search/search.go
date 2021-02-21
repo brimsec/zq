@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/brimsec/zq/api"
-	"github.com/brimsec/zq/ast"
+	"github.com/brimsec/zq/compiler/ast"
 	"github.com/brimsec/zq/driver"
 	"github.com/brimsec/zq/pkg/nano"
 	"github.com/brimsec/zq/ppl/zqd/storage"
@@ -36,9 +36,8 @@ const (
 )
 
 type SearchOp struct {
-	logger  *zap.Logger
-	query   *Query
-	workers int // for distributed queries only
+	logger *zap.Logger
+	query  *Query
 }
 
 func NewSearchOp(req api.SearchRequest, logger *zap.Logger) (*SearchOp, error) {
@@ -66,7 +65,7 @@ func NewSearchOp(req api.SearchRequest, logger *zap.Logger) (*SearchOp, error) {
 	}, nil
 }
 
-func (s *SearchOp) Run(ctx context.Context, store storage.Storage, output Output) (err error) {
+func (s *SearchOp) Run(ctx context.Context, store storage.Storage, output Output, parallelism int, wc worker.WorkerConfig) (err error) {
 	d := &searchdriver{
 		output:    output,
 		startTime: nano.Now(),
@@ -87,12 +86,17 @@ func (s *SearchOp) Run(ctx context.Context, store storage.Storage, output Output
 	switch st := store.(type) {
 	case *archivestore.Storage:
 		return driver.MultiRun(ctx, d, s.query.Proc, zctx, st.MultiSource(), driver.MultiConfig{
-			Logger:    s.logger,
-			Order:     zbuf.OrderDesc,
-			Span:      s.query.Span,
-			StatsTick: statsTicker.C,
+			Logger:      s.logger,
+			Order:       zbuf.OrderDesc,
+			Parallelism: parallelism,
+			Span:        s.query.Span,
+			StatsTick:   statsTicker.C,
+			Worker:      wc,
 		})
 	case *filestore.Storage:
+		if parallelism > 1 {
+			return fmt.Errorf("storage type %T does not support parallelism", st)
+		}
 		rc, err := st.Open(ctx, zctx, s.query.Span)
 		if err != nil {
 			return err
@@ -108,40 +112,6 @@ func (s *SearchOp) Run(ctx context.Context, store storage.Storage, output Output
 		})
 	default:
 		return fmt.Errorf("unknown storage type %T", st)
-	}
-}
-
-func (s *SearchOp) RunDistributed(ctx context.Context, store storage.Storage, output Output, numberOfWorkers int, workerConf worker.WorkerConfig, logger *zap.Logger) (err error) {
-	d := &searchdriver{
-		output:    output,
-		startTime: nano.Now(),
-	}
-	d.start(0)
-	defer func() {
-		if err != nil {
-			d.abort(0, err)
-			return
-		}
-		d.end(0)
-	}()
-
-	statsTicker := time.NewTicker(StatsInterval)
-	defer statsTicker.Stop()
-	zctx := resolver.NewContext()
-
-	switch st := store.(type) {
-	case *archivestore.Storage:
-		return driver.MultiRun(ctx, d, s.query.Proc, zctx, st.MultiSource(), driver.MultiConfig{
-			Distributed: true,
-			Logger:      logger,
-			Order:       zbuf.OrderDesc,
-			Parallelism: numberOfWorkers,
-			Span:        s.query.Span,
-			StatsTick:   statsTicker.C,
-			Worker:      workerConf,
-		})
-	default:
-		return fmt.Errorf("storage type %T unsupported for distributed query", st)
 	}
 }
 

@@ -1,5 +1,5 @@
 zql: |
-   cut id_filled=fill(id, "({orig_h:ip,orig_p:port=(uint16)})"),  id_fitted=fit(id, "({orig_h:ip,orig_p:port=(uint16)})")
+   cut id_filled=fill(id, {orig_h:ip,orig_p:port=(uint16)}),  id_fitted=fit(id, {orig_h:ip,orig_p:port=(uint16)})
 
 input: |
    #port=uint16
@@ -10,4 +10,3 @@ output: |
    #port=uint16
    #0:record[id_filled:record[orig_h:string,resp_h:string,orig_p:port],id_fitted:record[orig_h:string,orig_p:port]]
    0:[[ff02::fb;ff02::fb;-;][ff02::fb;-;]]
-

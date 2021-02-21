@@ -50,7 +50,7 @@ func TestASTPost(t *testing.T) {
 	_, conn := newCore(t)
 	resp, err := conn.Do(context.Background(), http.MethodPost, "/ast", &api.ASTRequest{ZQL: "*"})
 	require.NoError(t, err)
-	require.Equal(t, string(resp.Body()), "{\"op\":\"FilterProc\",\"filter\":{\"op\":\"MatchAll\"}}\n")
+	require.Equal(t, string(resp.Body()), "{\"op\":\"SequentialProc\",\"procs\":[{\"op\":\"FilterProc\",\"filter\":{\"op\":\"Literal\",\"type\":\"bool\",\"value\":\"true\"}}]}\n")
 }
 
 func TestSearch(t *testing.T) {
@@ -60,12 +60,16 @@ func TestSearch(t *testing.T) {
 0:[conn;1521911721.255387;C8Tful1TvM3Zf5x8fl;]
 `
 	_, conn := newCore(t)
-	sp, err := conn.SpacePost(context.Background(), api.SpacePostRequest{Name: "test"})
+	ctx := context.Background()
+	_, err := conn.SpacePost(ctx, api.SpacePostRequest{Name: "test"})
 	require.NoError(t, err)
-	_, err = conn.LogPostReaders(context.Background(), sp.ID, nil, strings.NewReader(src))
+	id, err := conn.SpaceLookup(ctx, "test")
 	require.NoError(t, err)
 
-	res := searchTzng(t, conn, sp.ID, "*")
+	_, err = conn.LogPostReaders(context.Background(), id, nil, strings.NewReader(src))
+	require.NoError(t, err)
+
+	res := searchTzng(t, conn, id, "*")
 	require.Equal(t, test.Trim(src), res)
 }
 
@@ -91,9 +95,10 @@ func TestSearchNoCtrl(t *testing.T) {
 		Span:  nano.MaxSpan,
 		Dir:   -1,
 	}
-	r, err := conn.Search(context.Background(), req, map[string]string{"noctrl": "true"})
+	body, err := conn.SearchRaw(context.Background(), req, map[string]string{"noctrl": "true"})
 	require.NoError(t, err)
 	var msgs []interface{}
+	r := client.NewZngSearch(body)
 	r.SetOnCtrl(func(i interface{}) {
 		msgs = append(msgs, i)
 	})
@@ -186,7 +191,7 @@ func TestSearchError(t *testing.T) {
 			Span:  nano.MaxSpan,
 			Dir:   2,
 		}
-		_, err = conn.Search(context.Background(), req, nil)
+		_, err = conn.SearchRaw(context.Background(), req, nil)
 		require.Error(t, err)
 		errResp := err.(*client.ErrorResponse)
 		assert.Equal(t, http.StatusBadRequest, errResp.StatusCode())
@@ -199,7 +204,7 @@ func TestSearchError(t *testing.T) {
 			Span:  nano.MaxSpan,
 			Dir:   1,
 		}
-		_, err = conn.Search(context.Background(), req, nil)
+		_, err = conn.SearchRaw(context.Background(), req, nil)
 		require.Error(t, err)
 		errResp := err.(*client.ErrorResponse)
 		assert.Equal(t, http.StatusBadRequest, errResp.StatusCode())
@@ -470,7 +475,6 @@ detectablebutbadline`
 	require.NoError(t, err)
 	assert.Regexp(t, ": format detection error.*", res.Warnings[0])
 	assert.Regexp(t, ": line 4: bad format$", res.Warnings[1])
-	assert.EqualValues(t, 114, res.BytesRead)
 }
 
 func TestPostNDJSONLogs(t *testing.T) {
@@ -541,8 +545,8 @@ func TestPostNDJSONLogs(t *testing.T) {
 }
 
 func TestPostNDJSONLogWarning(t *testing.T) {
-	src1 := strings.NewReader(`{"ts":"1000","_path":"nosuchpath"}
-{"ts":"2000","_path":"http"}`)
+	src1 := strings.NewReader(`{"ts":"1000","_path":"http"}
+{"ts":"2000","_path":"nosuchpath"}`)
 	src2 := strings.NewReader(`{"ts":"1000","_path":"http"}
 {"ts":"1000","_path":"http","extra":"foo"}`)
 	tc := ndjsonio.TypeConfig{
@@ -570,7 +574,7 @@ func TestPostNDJSONLogWarning(t *testing.T) {
 	res, err := conn.LogPostReaders(context.Background(), sp.ID, opts, src1, src2)
 	require.NoError(t, err)
 	require.Len(t, res.Warnings, 2)
-	assert.Regexp(t, ": line 1: descriptor not found", res.Warnings[0])
+	assert.Regexp(t, ": line 2: descriptor not found", res.Warnings[0])
 	assert.Regexp(t, ": line 2: incomplete descriptor", res.Warnings[1])
 	assert.EqualValues(t, 134, res.BytesRead)
 }
@@ -666,7 +670,7 @@ func TestCreateArchiveSpace(t *testing.T) {
 #0:record[ts:time,s:string,v:int64]
 0:[1587508881.0613914;harefoot-raucous;137;]
 `
-	res := searchTzng(t, conn, sp.ID, "s=harefoot-raucous")
+	res := searchTzng(t, conn, sp.ID, "s=harefoot\\-raucous")
 	require.Equal(t, test.Trim(exptzng), res)
 }
 
@@ -841,8 +845,9 @@ func search(t *testing.T, conn *client.Connection, space api.SpaceID, prog strin
 		Span:  nano.MaxSpan,
 		Dir:   -1,
 	}
-	r, err := conn.Search(context.Background(), req, nil)
+	body, err := conn.SearchRaw(context.Background(), req, nil)
 	require.NoError(t, err)
+	r := client.NewZngSearch(body)
 	buf := bytes.NewBuffer(nil)
 	w := tzngio.NewWriter(zio.NopCloser(buf))
 	var msgs []interface{}
@@ -854,15 +859,19 @@ func search(t *testing.T, conn *client.Connection, space api.SpaceID, prog strin
 }
 
 func searchTzng(t *testing.T, conn *client.Connection, space api.SpaceID, prog string) string {
-	tzng, _ := search(t, conn, space, prog)
-	return tzng
+	res, err := conn.Search(context.Background(), space, prog)
+	require.NoError(t, err)
+	buf := bytes.NewBuffer(nil)
+	w := tzngio.NewWriter(zio.NopCloser(buf))
+	require.NoError(t, zbuf.Copy(w, res))
+	return buf.String()
 }
 
 func tzngCopy(t *testing.T, prog string, in string, outFormat string) string {
 	zctx := resolver.NewContext()
 	r := tzngio.NewReader(bytes.NewReader([]byte(in)), zctx)
 	buf := bytes.NewBuffer(nil)
-	w, err := detector.LookupWriter(zio.NopCloser(buf), zio.WriterOpts{Format: outFormat})
+	w, err := detector.LookupWriter(zio.NopCloser(buf), zctx, zio.WriterOpts{Format: outFormat})
 	require.NoError(t, err)
 	p := compiler.MustParseProc(prog)
 	err = driver.Copy(context.Background(), w, p, zctx, r, driver.Config{})

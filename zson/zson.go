@@ -7,15 +7,32 @@
 package zson
 
 import (
+	"strings"
+
+	"github.com/brimsec/zq/compiler/ast"
 	"github.com/brimsec/zq/zng"
+	"github.com/brimsec/zq/zng/resolver"
 )
 
 // Implied returns true for primitive types whose type can be inferred
 // syntactically from its value and thus never needs a decorator.
 func Implied(typ zng.Type) bool {
-	switch typ.(type) {
+	switch typ := typ.(type) {
 	case *zng.TypeOfInt64, *zng.TypeOfDuration, *zng.TypeOfTime, *zng.TypeOfFloat64, *zng.TypeOfBool, *zng.TypeOfBytes, *zng.TypeOfString, *zng.TypeOfIP, *zng.TypeOfNet, *zng.TypeOfType:
 		return true
+	case *zng.TypeRecord:
+		for _, c := range typ.Columns {
+			if !Implied(c.Type) {
+				return false
+			}
+		}
+		return true
+	case *zng.TypeArray:
+		return Implied(typ.Type)
+	case *zng.TypeSet:
+		return Implied(typ.Type)
+	case *zng.TypeMap:
+		return Implied(typ.KeyType) && Implied(typ.ValType)
 	}
 	return false
 }
@@ -38,4 +55,20 @@ func SelfDescribing(typ zng.Type) bool {
 		return SelfDescribing(typ.Type)
 	}
 	return false
+}
+
+func LookupType(zctx *resolver.Context, zson string) (zng.Type, error) {
+	zp, err := NewParser(strings.NewReader(zson))
+	if err != nil {
+		return nil, err
+	}
+	ast, err := zp.parseType()
+	if ast == nil || noEOF(err) != nil {
+		return nil, err
+	}
+	return NewAnalyzer().convertType(zctx, ast)
+}
+
+func TranslateType(zctx *resolver.Context, astType ast.Type) (zng.Type, error) {
+	return NewAnalyzer().convertType(zctx, astType)
 }

@@ -1,0 +1,13 @@
+zql: is('{a:int32,b:string}')
+
+input: |
+  #0:record[a:int32,b:string]
+  0:[1;foo;]
+  #1:record[x:int8]
+  1:[2;]
+  0:[3;bar;]
+
+output: |
+  #0:record[a:int32,b:string]
+  0:[1;foo;]
+  0:[3;bar;]

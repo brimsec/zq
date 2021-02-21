@@ -6,6 +6,7 @@ import (
 	"github.com/brimsec/zq/zbuf"
 	"github.com/brimsec/zq/zio"
 	"github.com/brimsec/zq/zio/detector"
+	"github.com/brimsec/zq/zng/resolver"
 )
 
 type Bytes struct {
@@ -19,7 +20,7 @@ func (b *Bytes) Bytes() []byte {
 
 func NewBytes(opts zio.WriterOpts) (*Bytes, error) {
 	b := &Bytes{}
-	w, err := detector.LookupWriter(zio.NopCloser(&b.buf), opts)
+	w, err := detector.LookupWriter(zio.NopCloser(&b.buf), resolver.NewContext(), opts)
 	if err != nil {
 		return nil, err
 	}

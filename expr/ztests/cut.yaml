@@ -1,7 +1,7 @@
 zql: put v=cut(s,x)
 
 warnings: |
-  field is not present
+  put: a referenced field is missing
 
 input: |
   #0:record[x:int32,s:string]

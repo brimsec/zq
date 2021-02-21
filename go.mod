@@ -6,7 +6,7 @@ require (
 	github.com/alecthomas/units v0.0.0-20190717042225-c3de453c63f4
 	github.com/alexbrainman/ps v0.0.0-20171229230509-b3e1b4a15894
 	github.com/apache/thrift v0.0.0-20181112125854-24918abba929
-	github.com/aws/aws-sdk-go v1.30.19
+	github.com/aws/aws-sdk-go v1.36.17
 	github.com/axiomhq/hyperloglog v0.0.0-20191112132149-a4c4c47bc57f
 	github.com/buger/jsonparser v0.0.0-20191004114745-ee4c978eae7e
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
@@ -21,9 +21,6 @@ require (
 	github.com/gosuri/uilive v0.0.4
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
-	github.com/klauspost/compress v1.10.3 // indirect
-	github.com/mattn/go-isatty v0.0.12 // indirect
-	github.com/mattn/go-runewidth v0.0.9 // indirect
 	github.com/mccanne/charm v0.0.3-0.20191224190439-b05e1b7b1be3
 	github.com/mitchellh/mapstructure v1.3.3
 	github.com/pbnjay/memory v0.0.0-20190104145345-974d429e7ae4
@@ -37,16 +34,17 @@ require (
 	github.com/stretchr/testify v1.6.1
 	github.com/xitongsys/parquet-go v1.5.3-0.20200514000040-789bba367841
 	github.com/xitongsys/parquet-go-source v0.0.0-20200509081216-8db33acb0acf
-	github.com/yuin/goldmark v1.1.32
-	go.uber.org/multierr v1.5.0
-	go.uber.org/zap v1.15.0
-	golang.org/x/crypto v0.0.0-20201117144127-c1f2f97bffc9
-	golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208
-	golang.org/x/sys v0.0.0-20201119102817-f84b799fce68
-	golang.org/x/text v0.3.3
-	golang.org/x/tools v0.0.0-20200825202427-b303f430e36d // indirect
+	github.com/yuin/goldmark v1.2.1
+	go.temporal.io/sdk v1.4.1
+	go.temporal.io/server v1.6.3
+	go.uber.org/multierr v1.6.0
+	go.uber.org/zap v1.16.0
+	golang.org/x/crypto v0.0.0-20201221181555-eec23a3978ad
+	golang.org/x/sync v0.0.0-20201020160332-67f06af15bc9
+	golang.org/x/sys v0.0.0-20210105210732-16f7687f5001
+	golang.org/x/text v0.3.4
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
-	gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c
+	gopkg.in/yaml.v3 v3.0.0-20210106172901-c476de37821d
 )
 
 replace github.com/minio/minio => github.com/brimsec/minio v0.0.0-20201019191454-3c6f24527f6d

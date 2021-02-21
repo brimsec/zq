@@ -6,15 +6,12 @@ import (
 	"time"
 
 	"github.com/brimsec/zq/api"
-	"github.com/brimsec/zq/ppl/zqd/storage/archivestore"
-	"go.uber.org/zap"
 	"golang.org/x/sync/semaphore"
 )
 
 type compactor struct {
 	cancel      context.CancelFunc
 	done        sync.WaitGroup
-	logger      *zap.Logger
 	manager     *Manager
 	notify      chan api.SpaceID
 	compactDone chan api.SpaceID
@@ -27,7 +24,6 @@ func newCompactor(manager *Manager) *compactor {
 	ctx, cancel := context.WithCancel(context.Background())
 	c := &compactor{
 		cancel:      cancel,
-		logger:      manager.logger.Named("compactor"),
 		manager:     manager,
 		notify:      make(chan api.SpaceID),
 		compactDone: make(chan api.SpaceID),
@@ -41,8 +37,15 @@ func newCompactor(manager *Manager) *compactor {
 	return c
 }
 
-func (c *compactor) WriteComplete(id api.SpaceID) {
-	c.notify <- id
+func (c *compactor) SpaceCreated(ctx context.Context, id api.SpaceID) {}
+
+func (c *compactor) SpaceDeleted(ctx context.Context, id api.SpaceID) {}
+
+func (c *compactor) SpaceWritten(ctx context.Context, id api.SpaceID) {
+	select {
+	case c.notify <- id:
+	case <-ctx.Done():
+	}
 }
 
 func (c *compactor) launchCompact(ctx context.Context, id api.SpaceID) {
@@ -50,7 +53,19 @@ func (c *compactor) launchCompact(ctx context.Context, id api.SpaceID) {
 		if err := c.sem.Acquire(ctx, 1); err != nil {
 			return
 		}
-		c.compact(ctx, id)
+		if c.manager.Compact(ctx, id) == nil {
+			// Wait for one minute before doing purge. This delay is here to prevent
+			// the case where a directory listing of chunks is made for search, the tsdir is
+			// compacted and purged, then the search attempts to read a deleted chunk from
+			// its now stale directory listing.
+			// This is a stopgap solution to this problem; a more robust solution
+			// should be architected and implemented.
+			select {
+			case <-time.After(time.Second * 60):
+				c.manager.Purge(ctx, id)
+			case <-ctx.Done():
+			}
+		}
 		c.sem.Release(1)
 		c.compactDone <- id
 	}()
@@ -82,31 +97,7 @@ func (c *compactor) run(ctx context.Context) {
 	}
 }
 
-func (c *compactor) compact(ctx context.Context, id api.SpaceID) {
-	logger := c.logger.With(zap.String("space_id", string(id)))
-	s, err := c.manager.GetStorage(ctx, id)
-	if err != nil {
-		logger.Warn("Failed to compact", zap.Error(err))
-		return
-	}
-	store, ok := s.(*archivestore.Storage)
-	if !ok {
-		return
-	}
-	logger.Info("Compaction started")
-	start := time.Now()
-	if err := store.Compact(ctx, logger); err != nil {
-		if err == context.Canceled {
-			logger.Info("Compaction canceled")
-		} else {
-			logger.Warn("Compaction error", zap.Error(err))
-		}
-		return
-	}
-	logger.Info("Compaction completed", zap.Duration("duration", time.Since(start)))
-}
-
-func (c *compactor) close() {
+func (c *compactor) Shutdown() {
 	close(c.notify)
 	c.cancel()
 	c.done.Wait()

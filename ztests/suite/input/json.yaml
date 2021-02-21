@@ -3,12 +3,13 @@ zql: '*'
 input: |
   { "string1": "value1", "string2": "value1", "int1": 4, "bool1": true }
   { "int1": 4, "bool1": true, "string2": "value2", "string1": "value2" }
-  
+
   { "obj1": { "null1": null } }
 
 output: |
-  #0:record[bool1:bool,int1:float64,string1:string,string2:string]
-  0:[T;4;value1;value1;]
-  0:[T;4;value2;value2;]
-  #1:record[obj1:record[null1:string]]
-  1:[[-;]]
+  #0:record[string1:string,string2:string,int1:int64,bool1:bool]
+  0:[value1;value1;4;T;]
+  #1:record[int1:int64,bool1:bool,string2:string,string1:string]
+  1:[4;T;value2;value2;]
+  #2:record[obj1:record[null1:null]]
+  2:[[-;]]

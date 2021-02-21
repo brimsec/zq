@@ -174,7 +174,7 @@ func IsSigned(id int) bool {
 
 // True iff the type id is encoded as a string zcode.Bytes.
 func IsStringy(id int) bool {
-	return id == IdString || id == IdBstring || id == IdError
+	return id == IdString || id == IdBstring || id == IdError || id == IdType
 }
 
 const (

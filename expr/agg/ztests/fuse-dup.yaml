@@ -1,0 +1,14 @@
+# Enable after fixing https://github.com/brimsec/zq/issues/2145.
+skip: true
+
+zql: fuse(.)
+
+input: |
+  #0:record[a:string,b:string]
+  0:[hello;world;]
+  #1:record[a:string,b:int32]
+  1:[goodnight;123;]
+
+output: |
+  #0:record[fuse:type]
+  0:[{a:string,b:(string,int32)};]

@@ -1,5 +1,5 @@
 zql: |
-   put id=order(id, "({orig_h: string, orig_p: port=(uint16), resp_h:ip,resp_p:port=(uint16)})")
+   put .=order(., {id: {orig_h: string, orig_p: port=(uint16), resp_h:ip,resp_p:port=(uint16)}})
 
 input: |
    #port=uint16
@@ -10,4 +10,3 @@ output: |
    #port=uint16
    #0:record[id:record[orig_h:string,orig_p:port,resp_h:string,resp_p:port],other:float64]
    0:[[ff02::fb;5353;1.2.3.4;5354;]123;]
-

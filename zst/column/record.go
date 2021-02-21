@@ -115,7 +115,7 @@ func (r Record) Lookup(typ *zng.TypeRecord, fields []string) (zng.Type, Interfac
 	}
 	k, ok := typ.ColumnOfField(fields[0])
 	if !ok {
-		return nil, nil, zng.ErrNoSuchField
+		return nil, nil, zng.ErrMissing
 	}
 	t := typ.Columns[k].Type
 	if len(fields) == 1 {

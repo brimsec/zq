@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/brimsec/zq/ast"
+	"github.com/brimsec/zq/compiler/ast"
 	"github.com/brimsec/zq/pkg/byteconv"
 	"github.com/brimsec/zq/pkg/stringsearch"
 	"github.com/brimsec/zq/zcode"

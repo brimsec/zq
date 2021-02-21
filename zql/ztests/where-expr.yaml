@@ -1,0 +1,21 @@
+script: |
+  zq -t "_path=conn | count()" in.tzng
+  echo ===
+  zq -t "count() where _path=conn" in.tzng
+
+inputs:
+  - name: in.tzng
+    data: |
+      #0:record[_path:string]
+      0:[conn;]
+      0:[dns;]
+      0:[conn;]
+
+outputs:
+  - name: stdout
+    data: |
+      #0:record[count:uint64]
+      0:[2;]
+      ===
+      #0:record[count:uint64]
+      0:[2;]

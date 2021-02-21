@@ -1,0 +1,21 @@
+zql: |
+  switch (
+     case a=2 => put v='two'
+     case a=1 => put v='one'
+     case a=3 => filter null
+     case * => count() | put a=-1
+     ) | sort a
+
+input: |
+  #0:record[a:int32,s:string]
+  0:[1;a;]
+  0:[2;B;]
+  0:[3;c;]
+  0:[4;c;]
+
+output: |
+  #0:record[a:int32,s:string,v:string]
+  0:[1;a;one;]
+  0:[2;B;two;]
+  #1:record[count:uint64,a:int64]
+  1:[1;-1;]

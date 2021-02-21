@@ -19,6 +19,9 @@ func (t *TypeOfType) ID() int {
 func (t *TypeOfType) Parse(in []byte) (zcode.Bytes, error) {
 	// There's nothing to parse.  The zcode value is the ZSON value.
 	// The caller should validate the canonical form.
+	// This means we can't type check the parsed value here.
+	// A caller should type check the resulting type value with a
+	// type-context lookup.
 	return zcode.Bytes(in), nil
 }
 
@@ -27,7 +30,7 @@ func (t *TypeOfType) String() string {
 }
 
 func (t *TypeOfType) StringOf(zv zcode.Bytes, fmt OutFmt, inContainer bool) string {
-	return string(zv)
+	return TypeString.StringOf(zv, fmt, inContainer)
 }
 
 func (t *TypeOfType) Marshal(zv zcode.Bytes) (interface{}, error) {

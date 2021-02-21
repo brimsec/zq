@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/brimsec/zq/ast"
+	"github.com/brimsec/zq/compiler/ast"
 	"github.com/brimsec/zq/zng"
 	"github.com/brimsec/zq/zng/resolver"
 )
@@ -549,8 +549,8 @@ func (a Analyzer) convertTypeValue(zctx *resolver.Context, tv *ast.TypeValue, ca
 		cast = typ
 	}
 	return &TypeValue{
-		Type:  zng.TypeType,
-		Value: cast,
+		Type:  cast,
+		Value: typ,
 	}, nil
 }
 
@@ -590,6 +590,8 @@ func (a Analyzer) convertType(zctx *resolver.Context, typ ast.Type) (zng.Type, e
 			return nil, err
 		}
 		return zctx.LookupTypeSet(typ), nil
+	case *ast.TypeMap:
+		return a.convertTypeMap(zctx, t)
 	case *ast.TypeUnion:
 		return a.convertTypeUnion(zctx, t)
 	case *ast.TypeEnum:
@@ -615,6 +617,18 @@ func (a Analyzer) convertTypeRecord(zctx *resolver.Context, typ *ast.TypeRecord)
 		columns = append(columns, zng.Column{f.Name, typ})
 	}
 	return zctx.LookupTypeRecord(columns)
+}
+
+func (a Analyzer) convertTypeMap(zctx *resolver.Context, tmap *ast.TypeMap) (*zng.TypeMap, error) {
+	keyType, err := a.convertType(zctx, tmap.KeyType)
+	if err != nil {
+		return nil, err
+	}
+	valType, err := a.convertType(zctx, tmap.ValType)
+	if err != nil {
+		return nil, err
+	}
+	return zctx.LookupTypeMap(keyType, valType), nil
 }
 
 func (a Analyzer) convertTypeUnion(zctx *resolver.Context, union *ast.TypeUnion) (*zng.TypeUnion, error) {

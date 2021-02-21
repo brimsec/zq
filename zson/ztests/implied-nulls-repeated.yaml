@@ -1,0 +1,17 @@
+script: |
+  zq -f zson -pretty=0 in.tzng
+
+inputs:
+  - name: in.tzng
+    data: |
+      #0:record[a:string,b:array[record[a:string,b:string]]]
+      0:[hello;[[a;b;][c;d;][e;f;]]]
+      0:[world;-;]
+      0:[goodnight;-;]
+
+outputs:
+  - name: stdout
+    data: |
+      {a:"hello",b:[{a:"a",b:"b"},{a:"c",b:"d"},{a:"e",b:"f"}]}
+      {a:"world",b:null (0=([1=({a:string,b:string})]))}
+      {a:"goodnight",b:null (0)}

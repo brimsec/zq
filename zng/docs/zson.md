@@ -380,8 +380,8 @@ followed by whitespace are converted to a single newline and the first
 newline of the string is deleted.  To avoid this automatic deletion and
 preserve indentation, the backtick-quoted string can be preceded with `=>`.
 
-Of the 23 primitive types, ten of them represent _implied-type_ values:
-`int64`, `time`, `float64`, `bool`, `bytes`, `string`, `ip`, `net`, `type`, and `null`.
+Of the 23 primitive types, eleven of them represent _implied-type_ values:
+`int64`, `time`, `duration`, `float64`, `bool`, `bytes`, `string`, `ip`, `net`, `type`, and `null`.
 Values for these types are determined by the syntax of the value and
 thus do not need decorators to clarify the underlying type, e.g.,
 ```

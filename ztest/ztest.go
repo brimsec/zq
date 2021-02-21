@@ -138,23 +138,35 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Run runs the ztests in the directory named dirname.  For each file f.yaml in
-// the directory, Run calls FromYAMLFile to load a ztest and then runs it in
-// subtest named f.  path is a command search path like the
-// PATH environment variable.
-func Run(t *testing.T, dirname string) {
+func ShellPath() (string, error) {
 	path := os.Getenv("ZTEST_PATH")
 	if path != "" {
 		if out, _, err := runzq(path, "help", nil); err != nil {
 			if out != "" {
 				out = fmt.Sprintf(" with output %q", out)
 			}
-			t.Fatalf("failed to exec zq in dir $ZTEST_PATH %s: %s%s", path, err, out)
+			return "", fmt.Errorf("failed to exec zq in dir $ZTEST_PATH %s: %s%s", path, err, out)
 		}
 	}
+	return path, nil
+}
+
+type Bundle struct {
+	TestName string
+	FileName string
+	Test     *ZTest
+	Error    error
+}
+
+func (b *Bundle) RunScript(shellPath, workingDir string) error {
+	return b.Test.RunScript(b.TestName, shellPath, workingDir, b.FileName)
+}
+
+func Load(dirname string) ([]Bundle, error) {
+	var bundles []Bundle
 	fileinfos, err := ioutil.ReadDir(dirname)
 	if err != nil {
-		t.Fatal(err)
+		return nil, err
 	}
 	for _, fi := range fileinfos {
 		filename := fi.Name()
@@ -163,21 +175,41 @@ func Run(t *testing.T, dirname string) {
 			continue
 		}
 		testname := strings.TrimSuffix(filename, dotyaml)
-		t.Run(testname, func(t *testing.T) {
+		// An absolute path in errors makes the offending file easier to find.
+		filename, err := filepath.Abs(filepath.Join(dirname, filename))
+		var zt *ZTest
+		if err == nil {
+			zt, err = FromYAMLFile(filename)
+		}
+		bundles = append(bundles, Bundle{testname, filename, zt, err})
+	}
+	return bundles, nil
+}
+
+// Run runs the ztests in the directory named dirname.  For each file f.yaml in
+// the directory, Run calls FromYAMLFile to load a ztest and then runs it in
+// subtest named f.  path is a command search path like the
+// PATH environment variable.
+func Run(t *testing.T, dirname string) {
+	shellPath, err := ShellPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	bundles, err := Load(dirname)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, bundle := range bundles {
+		b := bundle
+		t.Run(b.TestName, func(t *testing.T) {
 			t.Parallel()
-			// An absolute path in errors makes the offending file easier to find.
-			filename, err := filepath.Abs(filepath.Join(dirname, filename))
-			if err != nil {
-				t.Fatal(err)
+			if b.Error != nil {
+				t.Fatalf("%s: %s", b.FileName, b.Error)
 			}
-			zt, err := FromYAMLFile(filename)
-			if err != nil {
-				t.Fatalf("%s: %s", filename, err)
-			}
-			if zt.Skip {
+			if b.Test.Skip {
 				t.Skip("test is disabled")
 			}
-			zt.Run(t, testname, path, dirname, filename)
+			b.Test.Run(t, b.TestName, shellPath, dirname, b.FileName)
 		})
 	}
 }
@@ -376,25 +408,36 @@ func FromYAMLFile(filename string) (*ZTest, error) {
 	return &z, nil
 }
 
+func (z *ZTest) ShouldSkip(path string) string {
+	if runtime.GOOS == "windows" {
+		// XXX skip in windows until we figure out the best
+		// way to support script-driven tests across
+		// environments
+		return "skipping script test on Windows"
+	}
+	if path == "" {
+		return "skipping script test on in-process run"
+	}
+	if z.Tag != "" && z.Tag != os.Getenv("ZTEST_TAG") {
+		return fmt.Sprintf("skipping script test because tag %q does not match ZTEST_TAG=%q", z.Tag, os.Getenv("ZTEST_TAG"))
+	}
+	return ""
+}
+
+func (z *ZTest) RunScript(testname, shellPath, workingDir, filename string) error {
+	adir, _ := filepath.Abs(workingDir)
+	return runsh(testname, shellPath, adir, z)
+}
+
 func (z *ZTest) Run(t *testing.T, testname, path, dirname, filename string) {
 	if err := z.check(); err != nil {
 		t.Fatalf("%s: bad yaml format: %s", filename, err)
 	}
 	if z.Script != "" {
-		if runtime.GOOS == "windows" {
-			// XXX skip in windows until we figure out the best
-			// way to support script-driven tests across
-			// environments
-			t.Skip("skipping script test on Windows")
+		if msg := z.ShouldSkip(path); msg != "" {
+			t.Skip(msg)
 		}
-		if path == "" {
-			t.Skip("skipping script test on in-process run")
-		}
-		if z.Tag != "" && z.Tag != os.Getenv("ZTEST_TAG") {
-			t.Skipf("skipping script test because tag %q does not match ZTEST_TAG=%q", z.Tag, os.Getenv("ZTEST_TAG"))
-		}
-		adir, _ := filepath.Abs(dirname)
-		if err := runsh(testname, path, adir, z); err != nil {
+		if err := z.RunScript(testname, path, dirname, filename); err != nil {
 			t.Fatalf("%s: %s", filename, err)
 		}
 		return
@@ -491,7 +534,7 @@ func checkData(files map[string][]byte, dir *Dir, stdout, stderr string) error {
 func runsh(testname, path, dirname string, zt *ZTest) error {
 	dir, err := NewDir(testname)
 	if err != nil {
-		return err
+		return fmt.Errorf("creating ztest scratch dir: \"%s\": %w", testname, err)
 	}
 	var stdin io.Reader
 	defer dir.RemoveAll()
@@ -597,7 +640,7 @@ func runzq(path, ZQL string, outputFlags []string, inputs ...string) (string, st
 	if err := flags.Parse(outputFlags); err != nil {
 		return "", "", err
 	}
-	zw, err := detector.LookupWriter(&nopCloser{&outbuf}, zflags.Options())
+	zw, err := detector.LookupWriter(&nopCloser{&outbuf}, zctx, zflags.Options())
 	if err != nil {
 		return "", "", err
 	}

@@ -6,7 +6,6 @@ import (
 
 	"github.com/brimsec/zq/zbuf"
 	"github.com/brimsec/zq/zio"
-	"github.com/brimsec/zq/zio/azngio"
 	"github.com/brimsec/zq/zio/csvio"
 	"github.com/brimsec/zq/zio/ndjsonio"
 	"github.com/brimsec/zq/zio/tableio"
@@ -32,7 +31,7 @@ func (*nullWriter) Close() error {
 	return nil
 }
 
-func LookupWriter(w io.WriteCloser, opts zio.WriterOpts) (zbuf.WriteCloser, error) {
+func LookupWriter(w io.WriteCloser, zctx *resolver.Context, opts zio.WriterOpts) (zbuf.WriteCloser, error) {
 	if opts.Format == "" {
 		opts.Format = "tzng"
 	}
@@ -58,7 +57,7 @@ func LookupWriter(w io.WriteCloser, opts zio.WriterOpts) (zbuf.WriteCloser, erro
 	case "table":
 		return tableio.NewWriter(w, opts.UTF8, opts.EpochDates), nil
 	case "csv":
-		return csvio.NewWriter(w, csvio.WriterOpts{
+		return csvio.NewWriter(w, zctx, csvio.WriterOpts{
 			EpochDates: opts.EpochDates,
 			Fuse:       opts.CSVFuse,
 			UTF8:       opts.UTF8,
@@ -84,8 +83,6 @@ func lookupReader(r io.Reader, zctx *resolver.Context, path string, opts zio.Rea
 		return zson.NewReader(r, zctx), nil
 	case "zst":
 		return zstio.NewReader(r, zctx)
-	case "azng":
-		return azngio.NewReader(r, zctx)
 	}
 	return nil, fmt.Errorf("no such format: \"%s\"", opts.Format)
 }

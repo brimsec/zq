@@ -12,3 +12,15 @@ services:
     image: "redis:6"
     ports:
       - "6379:6379"
+  temporal:
+    depends_on:
+      - database
+    environment:
+      - DB=postgresql
+      - DB_PORT=5432
+      - POSTGRES_USER=test
+      - POSTGRES_PWD=test
+      - POSTGRES_SEEDS=database
+    image: temporalio/auto-setup:${TEMPORAL_VERSION:?}
+    ports:
+      - 7233:7233

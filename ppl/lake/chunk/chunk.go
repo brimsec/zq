@@ -175,6 +175,18 @@ func (c Chunk) Remove(ctx context.Context) error {
 	return nil
 }
 
+type Chunks []Chunk
+
+func (cs Chunks) Overlapping(span nano.Span) Chunks {
+	chunks := make(Chunks, 0, len(cs))
+	for _, chunk := range cs {
+		if span.Overlaps(chunk.Span()) {
+			chunks = append(chunks, chunk)
+		}
+	}
+	return chunks
+}
+
 func Less(order zbuf.Order, a, b Chunk) bool {
 	if order == zbuf.OrderDesc {
 		a, b = b, a

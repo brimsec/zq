@@ -21,6 +21,7 @@ type Formatter struct {
 	types       *TypeTable
 	builder     strings.Builder
 	stack       []strings.Builder
+	implied     map[zng.Type]bool
 }
 
 func NewFormatter(pretty int) *Formatter {
@@ -33,6 +34,7 @@ func NewFormatter(pretty int) *Formatter {
 		tab:        pretty,
 		newline:    newline,
 		whitespace: strings.Repeat(" ", 80),
+		implied:    make(map[zng.Type]bool),
 	}
 }
 
@@ -65,17 +67,21 @@ func (f *Formatter) Format(zv zng.Value) (string, error) {
 
 func (f *Formatter) formatValueAndDecorate(typ zng.Type, bytes zcode.Bytes) error {
 	known := f.typedefs.exists(typ)
-	if err := f.formatValue(0, typ, bytes, known, false); err != nil {
+	implied := f.isImplied(typ)
+	if err := f.formatValue(0, typ, bytes, known, implied, false); err != nil {
 		return err
 	}
 	f.decorate(typ, false, bytes == nil)
 	return nil
 }
 
-func (f *Formatter) formatValue(indent int, typ zng.Type, bytes zcode.Bytes, parentKnown, decorate bool) error {
+func (f *Formatter) formatValue(indent int, typ zng.Type, bytes zcode.Bytes, parentKnown, parentImplied, decorate bool) error {
 	known := parentKnown || f.typedefs.exists(typ)
 	if bytes == nil {
 		f.build("null")
+		if parentImplied {
+			parentKnown = false
+		}
 		f.decorate(typ, parentKnown, true)
 		return nil
 	}
@@ -85,17 +91,17 @@ func (f *Formatter) formatValue(indent int, typ zng.Type, bytes zcode.Bytes, par
 	default:
 		f.build(typ.ZSONOf(bytes))
 	case *zng.TypeAlias:
-		err = f.formatValue(indent, t.Type, bytes, known, false)
+		err = f.formatValue(indent, t.Type, bytes, known, parentImplied, false)
 	case *zng.TypeRecord:
-		err = f.formatRecord(indent, t, bytes, known)
+		err = f.formatRecord(indent, t, bytes, known, parentImplied)
 	case *zng.TypeArray:
-		null, err = f.formatVector(indent, "[", "]", t.Type, zng.Value{t, bytes}, known)
+		null, err = f.formatVector(indent, "[", "]", t.Type, zng.Value{t, bytes}, known, parentImplied)
 	case *zng.TypeSet:
-		null, err = f.formatVector(indent, "|[", "]|", t.Type, zng.Value{t, bytes}, known)
+		null, err = f.formatVector(indent, "|[", "]|", t.Type, zng.Value{t, bytes}, known, parentImplied)
 	case *zng.TypeUnion:
 		err = f.formatUnion(indent, t, bytes)
 	case *zng.TypeMap:
-		null, err = f.formatMap(indent, t, bytes, known)
+		null, err = f.formatMap(indent, t, bytes, known, parentImplied)
 	case *zng.TypeEnum:
 		f.build(t.ZSONOf(bytes))
 	case *zng.TypeOfType:
@@ -114,7 +120,7 @@ func (f *Formatter) nextInternalType() string {
 }
 
 func (f *Formatter) decorate(typ zng.Type, known, null bool) {
-	if known || (!null && Implied(typ)) {
+	if known || (!null && f.isImplied(typ)) {
 		return
 	}
 	if name, ok := f.typedefs[typ]; ok {
@@ -137,7 +143,7 @@ func (f *Formatter) decorate(typ zng.Type, known, null bool) {
 	f.build(")")
 }
 
-func (f *Formatter) formatRecord(indent int, typ *zng.TypeRecord, bytes zcode.Bytes, known bool) error {
+func (f *Formatter) formatRecord(indent int, typ *zng.TypeRecord, bytes zcode.Bytes, known, parentImplied bool) error {
 	f.build("{")
 	if len(typ.Columns) == 0 {
 		f.build("}")
@@ -160,7 +166,7 @@ func (f *Formatter) formatRecord(indent int, typ *zng.TypeRecord, bytes zcode.By
 		if f.tab > 0 {
 			f.build(" ")
 		}
-		if err := f.formatValue(indent, field.Type, bytes, known, true); err != nil {
+		if err := f.formatValue(indent, field.Type, bytes, known, parentImplied, true); err != nil {
 			return err
 		}
 		sep = "," + f.newline
@@ -170,7 +176,7 @@ func (f *Formatter) formatRecord(indent int, typ *zng.TypeRecord, bytes zcode.By
 	return nil
 }
 
-func (f *Formatter) formatVector(indent int, open, close string, inner zng.Type, zv zng.Value, known bool) (bool, error) {
+func (f *Formatter) formatVector(indent int, open, close string, inner zng.Type, zv zng.Value, known, parentImplied bool) (bool, error) {
 	f.build(open)
 	len, err := zv.ContainerLength()
 	if err != nil {
@@ -190,7 +196,7 @@ func (f *Formatter) formatVector(indent int, open, close string, inner zng.Type,
 		}
 		f.build(sep)
 		f.indent(indent, "")
-		if err := f.formatValue(indent, inner, bytes, known, true); err != nil {
+		if err := f.formatValue(indent, inner, bytes, known, parentImplied, true); err != nil {
 			return true, err
 		}
 		sep = "," + f.newline
@@ -213,11 +219,12 @@ func (f *Formatter) formatUnion(indent int, union *zng.TypeUnion, bytes zcode.By
 	// disambiguation.  See issue #1764.
 	// In other words, just because we known the union's type doesn't mean
 	// we know the type of a particular value of that union.
-	known := false
-	return f.formatValue(indent, typ, bytes, known, true)
+	const known = false
+	const parentImplied = true
+	return f.formatValue(indent, typ, bytes, known, parentImplied, true)
 }
 
-func (f *Formatter) formatMap(indent int, typ *zng.TypeMap, bytes zcode.Bytes, known bool) (bool, error) {
+func (f *Formatter) formatMap(indent int, typ *zng.TypeMap, bytes zcode.Bytes, known, parentImplied bool) (bool, error) {
 	empty := true
 	f.build("|{")
 	indent += f.tab
@@ -237,11 +244,11 @@ func (f *Formatter) formatMap(indent int, typ *zng.TypeMap, bytes zcode.Bytes, k
 		}
 		f.build(sep)
 		f.indent(indent, "{")
-		if err := f.formatValue(indent+f.tab, typ.KeyType, keyBytes, known, true); err != nil {
+		if err := f.formatValue(indent+f.tab, typ.KeyType, keyBytes, known, parentImplied, true); err != nil {
 			return empty, err
 		}
 		f.build(",")
-		if err := f.formatValue(indent+f.tab, typ.ValType, valBytes, known, true); err != nil {
+		if err := f.formatValue(indent+f.tab, typ.ValType, valBytes, known, parentImplied, true); err != nil {
 			return empty, err
 		}
 		f.build("}")
@@ -377,13 +384,23 @@ func (f *Formatter) formatTypeEnum(typ *zng.TypeEnum) error {
 		f.build(sep)
 		f.buildf("%s:", zng.QuotedName(elem.Name))
 		known := k != 0
-		if err := f.formatValue(0, inner, elem.Value, known, true); err != nil {
+		const parentImplied = true
+		if err := f.formatValue(0, inner, elem.Value, known, parentImplied, true); err != nil {
 			return err
 		}
 		sep = ","
 	}
 	f.build(">")
 	return nil
+}
+
+func (f *Formatter) isImplied(typ zng.Type) bool {
+	implied, ok := f.implied[typ]
+	if !ok {
+		implied = Implied(typ)
+		f.implied[typ] = implied
+	}
+	return implied
 }
 
 type typemap map[zng.Type]string

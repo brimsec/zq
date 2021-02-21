@@ -10,6 +10,7 @@ import (
 	"github.com/brimsec/zq/zbuf"
 	"github.com/brimsec/zq/zio"
 	"github.com/brimsec/zq/zio/detector"
+	"github.com/brimsec/zq/zng/resolver"
 	"golang.org/x/crypto/ssh/terminal"
 )
 
@@ -58,7 +59,7 @@ func NewFileWithSource(ctx context.Context, path iosrc.URI, opts zio.WriterOpts,
 	// On close, zbuf.WriteCloser.Close() will close and flush the
 	// downstream writer, which will flush the bufwriter here and,
 	// in turn, close its underlying writer.
-	w, err := detector.LookupWriter(wc, opts)
+	w, err := detector.LookupWriter(wc, resolver.NewContext(), opts)
 	if err != nil {
 		return nil, err
 	}

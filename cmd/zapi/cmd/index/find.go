@@ -74,7 +74,7 @@ func NewFind(parent charm.Command, f *flag.FlagSet) (charm.Command, error) {
 
 func (c *FindCmd) Run(args []string) error {
 	defer c.Cleanup()
-	if err := c.Init(); err != nil {
+	if err := c.Init(&c.outputFlags); err != nil {
 		return err
 	}
 	req := api.IndexSearchRequest{IndexName: c.indexFile, Patterns: args}

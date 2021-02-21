@@ -8,13 +8,18 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/brimsec/zq/ast"
+	"github.com/brimsec/zq/compiler/ast"
 )
 
 func (p *Parser) ParseValue() (ast.Value, error) {
 	v, err := p.matchValue()
 	if err == io.EOF {
 		err = nil
+	}
+	if v == nil && err == nil {
+		if err := p.lexer.check(1); (err != nil && err != io.EOF) || len(p.lexer.cursor) > 0 {
+			return nil, errors.New("zson syntax error")
+		}
 	}
 	return v, err
 }
@@ -151,6 +156,12 @@ func (p *Parser) parseDecorator(any ast.Any, val ast.Value) (ast.Value, error) {
 	}, nil
 }
 
+// A bug in Go's time.ParseDuration() function causes an error for
+// duration value math.MinInt64.  We work around this by explicitly
+// checking for the string that represents this duration (which is
+// correctly returned by time.Duration.String()).
+const minDuration = "-2562047h47m16.854775808s"
+
 func (p *Parser) matchPrimitive() (*ast.Primitive, error) {
 	if val, err := p.matchStringPrimitive(); val != nil || err != nil {
 		return val, noEOF(err)
@@ -178,18 +189,22 @@ func (p *Parser) matchPrimitive() (*ast.Primitive, error) {
 		typ = "null"
 	} else if _, err := strconv.ParseInt(s, 10, 64); err == nil {
 		typ = "int64"
+	} else if _, err := strconv.ParseUint(s, 10, 64); err == nil {
+		typ = "uint64"
 	} else if _, err := strconv.ParseFloat(s, 64); err == nil {
 		typ = "float64"
 	} else if _, err := time.Parse(time.RFC3339Nano, s); err == nil {
 		typ = "time"
-	} else if _, err := time.ParseDuration(s); err == nil {
+	} else if _, err := time.ParseDuration(s); err == nil || s == minDuration {
 		typ = "duration"
 	} else if _, _, err := net.ParseCIDR(s); err == nil {
 		typ = "net"
 	} else if ip := net.ParseIP(s); ip != nil {
 		typ = "ip"
-	} else if len(s) >= 4 && s[0:2] == "0x" {
-		if _, err := hex.DecodeString(s[2:]); err == nil {
+	} else if len(s) >= 2 && s[0:2] == "0x" {
+		if len(s) == 2 {
+			typ = "bytes"
+		} else if _, err := hex.DecodeString(s[2:]); err == nil {
 			typ = "bytes"
 		} else {
 			return nil, err
@@ -200,7 +215,7 @@ func (p *Parser) matchPrimitive() (*ast.Primitive, error) {
 	}
 	l.skip(len(s))
 	return &ast.Primitive{
-		Op:   ast.PrimitiveOp,
+		Op:   "Primitive",
 		Type: typ,
 		Text: s,
 	}, nil
@@ -212,7 +227,7 @@ func (p *Parser) matchStringPrimitive() (*ast.Primitive, error) {
 		return nil, noEOF(err)
 	}
 	return &ast.Primitive{
-		Op:   ast.PrimitiveOp,
+		Op:   "Primitive",
 		Type: "string",
 		Text: s,
 	}, nil
@@ -269,7 +284,7 @@ func (p *Parser) matchBacktickString() (*ast.Primitive, error) {
 		return nil, p.error("mismatched string backticks")
 	}
 	return &ast.Primitive{
-		Op:   ast.PrimitiveOp,
+		Op:   "Primitive",
 		Type: "string",
 		Text: s,
 	}, nil
@@ -292,7 +307,7 @@ func (p *Parser) matchRecord() (*ast.Record, error) {
 		return nil, p.error("mismatched braces while parsing record type")
 	}
 	return &ast.Record{
-		Op:     ast.RecordOp,
+		Op:     "Record",
 		Fields: fields,
 	}, nil
 }
@@ -378,7 +393,7 @@ func (p *Parser) matchArray() (*ast.Array, error) {
 		return nil, p.error("mismatched brackets while parsing array type")
 	}
 	return &ast.Array{
-		Op:       ast.ArrayOp,
+		Op:       "Array",
 		Elements: vals,
 	}, nil
 }
@@ -431,7 +446,7 @@ func (p *Parser) matchSetOrMap() (ast.Any, error) {
 			return nil, p.error("mismatched set value brackets")
 		}
 		val = &ast.Set{
-			Op:       ast.SetOp,
+			Op:       "Set",
 			Elements: vals,
 		}
 	} else {
@@ -455,7 +470,7 @@ func (p *Parser) matchSetOrMap() (ast.Any, error) {
 			return nil, p.error("mismatched map value brackets")
 		}
 		val = &ast.Map{
-			Op:      ast.MapOp,
+			Op:      "Map",
 			Entries: entries,
 		}
 	}
@@ -538,7 +553,7 @@ func (p *Parser) matchEnum() (*ast.Enum, error) {
 		return nil, noEOF(err)
 	}
 	return &ast.Enum{
-		Op:   ast.EnumOp,
+		Op:   "Enum",
 		Name: name,
 	}, nil
 }
@@ -560,7 +575,7 @@ func (p *Parser) matchTypeValue() (*ast.TypeValue, error) {
 		return nil, p.error("mismatched parentheses while parsing type value")
 	}
 	return &ast.TypeValue{
-		Op:    ast.TypeValueOp,
+		Op:    "TypeValue",
 		Value: typ,
 	}, nil
 }

@@ -1,0 +1,13 @@
+zql: cut split(s,".")
+
+input: |
+  #0:record[s:string]
+  0:[foo.bar.com;]
+  0:[foo;]
+  0:[acme.io;]
+
+output: |
+  #0:record[split:array[string]]
+  0:[[foo;bar;com;]]
+  0:[[foo;]]
+  0:[[acme;io;]]

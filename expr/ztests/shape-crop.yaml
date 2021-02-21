@@ -1,9 +1,9 @@
 zql: |
    put
    // crop to type with same field order
-   id=crop(id, "({orig_h:ip,orig_p:port=(uint16)})"),
+   id=crop(id, {orig_h:ip,orig_p:port=(uint16)}),
    // crop to type with different field order, does not change output order
-   id2=crop(id, "({orig_p:port=(uint16),orig_h:ip})")
+   id2=crop(id, {orig_p:port=(uint16),orig_h:ip})
 
 input: |
    #port=uint16
@@ -14,4 +14,3 @@ output: |
    #port=uint16
    #0:record[id:record[orig_h:ip,orig_p:port],other:float64,id2:record[orig_h:ip,orig_p:port]]
    0:[[ff02::fb;5353;]123;[ff02::fb;5353;]]
-

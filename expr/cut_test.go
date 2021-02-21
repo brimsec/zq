@@ -1,6 +1,7 @@
 package expr_test
 
 import (
+	"fmt"
 	"testing"
 
 	"errors"
@@ -86,7 +87,7 @@ func testNonAdjacentFields(t *testing.T, zql string) {
 	_, err := proctest.CompileTestProc(zql, proctest.NewTestContext(nil), nil)
 	require.Error(t, err, "cut with non-adjacent records did not fail")
 	ok := errors.Is(err, builder.ErrNonAdjacent)
-	require.True(t, ok, "cut with non-adjacent records failed with the wrong error")
+	require.True(t, ok, fmt.Sprintf("cut with non-adjacent records failed with the wrong error: %s", err))
 }
 
 func TestNotAdjacentErrors(t *testing.T) {

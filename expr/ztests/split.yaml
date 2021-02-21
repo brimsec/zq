@@ -1,0 +1,10 @@
+zql: |
+   cut a1=split(s1,"."),a2=split(s2,"."),a3=split(s3,"."),a4=split(s4,"."),oo=split(s1,"oo")
+
+input: |
+  #0:record[s1:string,s2:string,s3:string,s4:string]
+  0:[foo.bar.com;foo;-;;]
+
+output: |
+  #0:record[a1:array[string],a2:array[string],a3:array[string],a4:array[string],oo:array[string]]
+  0:[[foo;bar;com;][foo;]-;[;][f;.bar.com;]]

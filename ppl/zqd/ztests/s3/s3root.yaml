@@ -5,7 +5,7 @@ script: |
   echo ===
   zapi -h $ZQD_HOST -s testsp info | egrep -v 'data_path|id|pcap_path'
   echo ===
-  zapi -h $ZQD_HOST -s testsp get -f tzng "s=harefoot-raucous"
+  zapi -h $ZQD_HOST -s testsp get -f tzng 's="harefoot-raucous"'
 
 inputs:
   - name: babble.tzng

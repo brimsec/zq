@@ -9,4 +9,4 @@ inputs:
 outputs:
   - name: stdout
     data: |
-      {d:486µs} (=0)
+      {d:486µs}

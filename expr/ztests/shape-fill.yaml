@@ -1,9 +1,16 @@
-zql: put t = fill(., "({a:{b:{a1:string}}})")
+zql: put . = fill(., {a:{b:{c:string}}})
 
 input: |
   #0:record[s:string]
   0:[x;]
+  #1:record[a:record[s:string]]
+  1:[-;]
+  1:[[-;]]
+
 
 output: |
-  #0:record[s:string,t:record[s:string,a:record[b:record[a1:string]]]]
-  0:[x;[x;-;]]
+  #0:record[s:string,a:record[b:record[c:string]]]
+  0:[x;-;]
+  #1:record[a:record[s:string,b:record[c:string]]]
+  1:[-;]
+  1:[[-;-;]]

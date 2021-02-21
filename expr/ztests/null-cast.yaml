@@ -1,0 +1,9 @@
+zql: cut s=null:string,a=null:ip
+
+input: |
+  #0:record[x:string]
+  0:[foo;]
+
+output: |
+  #0:record[s:string,a:ip]
+  0:[-;-;]

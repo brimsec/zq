@@ -30,7 +30,7 @@ type WriterOpts struct {
 	UTF8       bool
 }
 
-func NewWriter(w io.WriteCloser, opts WriterOpts) zbuf.WriteCloser {
+func NewWriter(w io.WriteCloser, zctx *resolver.Context, opts WriterOpts) zbuf.WriteCloser {
 	format := zng.OutFormatZeekAscii
 	if opts.UTF8 {
 		format = zng.OutFormatZeek
@@ -43,7 +43,7 @@ func NewWriter(w io.WriteCloser, opts WriterOpts) zbuf.WriteCloser {
 		format:     format,
 	}
 	if opts.Fuse {
-		return fuse.WriteCloser(zw)
+		return fuse.WriteCloser(zw, zctx)
 	}
 	return zw
 }

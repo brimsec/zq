@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/brimsec/zq/ast"
+	"github.com/brimsec/zq/compiler/ast"
 	"github.com/brimsec/zq/zcode"
 )
 
@@ -186,6 +186,12 @@ func (v Value) IsStringy() bool {
 
 func (v Value) IsError() bool {
 	return v.Type == TypeError
+}
+
+var missingAsBytes = []byte(missing)
+
+func (v Value) IsMissing() bool {
+	return v.Type == TypeError && bytes.Equal(v.Bytes, missingAsBytes)
 }
 
 func (v Value) Equal(p Value) bool {

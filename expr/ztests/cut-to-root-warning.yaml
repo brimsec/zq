@@ -1,0 +1,10 @@
+zql: 'cut .=c'
+
+input: |
+  #0:record[a:record[b:int32]]
+  0:[-;]
+  0:[[-;]]
+  0:[[1;]]
+
+warnings: |
+  cut: no record found with columns c

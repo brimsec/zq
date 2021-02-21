@@ -3,7 +3,9 @@ package zson
 import (
 	"unicode"
 
-	"github.com/brimsec/zq/ast"
+	// XXX should move ZSON ast into zq/zson/ast... it's a bit different
+	// than Z literals so it deserves its own home.
+	"github.com/brimsec/zq/compiler/ast"
 	"github.com/brimsec/zq/zng"
 )
 
@@ -67,12 +69,12 @@ func (p *Parser) matchTypeName() (ast.Type, error) {
 		return nil, err
 	}
 	if t := zng.LookupPrimitive(name); t != nil {
-		return &ast.TypePrimitive{ast.TypePrimitiveOp, name}, nil
+		return &ast.TypePrimitive{"TypePrimitive", name}, nil
 	}
 	// Wherever we have a type name, we can have a type def defining the
 	// type name.
 	if ok, err := l.match('='); !ok || err != nil {
-		return &ast.TypeName{ast.TypeNameOp, name}, nil
+		return &ast.TypeName{"TypeName", name}, nil
 	}
 	tv, err := p.matchTypeValue()
 	if err != nil {
@@ -82,7 +84,7 @@ func (p *Parser) matchTypeName() (ast.Type, error) {
 		return nil, p.errorf("bad type sytax in typedef '%s=...'", name)
 	}
 	return &ast.TypeDef{
-		Op:   ast.TypeDefOp,
+		Op:   "TypeDef",
 		Name: name,
 		Type: tv.Value,
 	}, nil
@@ -119,7 +121,7 @@ func (p *Parser) matchTypeRecord() (*ast.TypeRecord, error) {
 		return nil, p.error("mismatched braces while parsing record type")
 	}
 	return &ast.TypeRecord{
-		Op:     ast.TypeRecordOp,
+		Op:     "TypeRecord",
 		Fields: fields,
 	}, nil
 }
@@ -167,7 +169,7 @@ func (p *Parser) matchTypeArray() (*ast.TypeArray, error) {
 		return nil, p.error("mismatched brackets while parsing array type")
 	}
 	return &ast.TypeArray{
-		Op:   ast.TypeArrayOp,
+		Op:   "TypeArray",
 		Type: typ,
 	}, nil
 }
@@ -197,7 +199,7 @@ func (p *Parser) matchTypeSetOrMap() (ast.Type, error) {
 			return nil, p.error("mismatched set-brackets while parsing set type")
 		}
 		typ = &ast.TypeSet{
-			Op:   ast.TypeSetOp,
+			Op:   "TypeSet",
 			Type: inner,
 		}
 	} else {
@@ -249,7 +251,7 @@ func (p *Parser) parseTypeMap() (*ast.TypeMap, error) {
 		return nil, err
 	}
 	return &ast.TypeMap{
-		Op:      ast.TypeMapOp,
+		Op:      "TypeMap",
 		KeyType: keyType,
 		ValType: valType,
 	}, nil
@@ -289,7 +291,7 @@ func (p *Parser) matchTypeUnion() (*ast.TypeUnion, error) {
 		return nil, p.error("mismatched parentheses while parsing union type")
 	}
 	return &ast.TypeUnion{
-		Op:    ast.TypeUnionOp,
+		Op:    "TypeUnion",
 		Types: types,
 	}, nil
 }
@@ -311,7 +313,7 @@ func (p *Parser) matchTypeEnum() (*ast.TypeEnum, error) {
 		return nil, p.error("mismatched brackets while parsing enum type")
 	}
 	return &ast.TypeEnum{
-		Op:       ast.TypeEnumOp,
+		Op:       "TypeEnum",
 		Elements: fields,
 	}, nil
 }

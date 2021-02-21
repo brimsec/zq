@@ -19,16 +19,18 @@ var (
 // and zng descriptor objects, which hold the binding between an identifier
 // and a zng.Type.
 type Context struct {
-	mu    sync.RWMutex
-	table []zng.Type
-	lut   map[string]int
+	mu       sync.RWMutex
+	table    []zng.Type
+	lut      map[string]int
+	typedefs map[string]*zng.TypeAlias
 }
 
 func NewContext() *Context {
 	return &Context{
 		//XXX hack... leave blanks for primitive types... will fix this later
-		table: make([]zng.Type, zng.IdTypeDef),
-		lut:   make(map[string]int),
+		table:    make([]zng.Type, zng.IdTypeDef),
+		lut:      make(map[string]int),
+		typedefs: make(map[string]*zng.TypeAlias),
 	}
 }
 
@@ -311,6 +313,12 @@ func (c *Context) LookupTypeEnum(typ zng.Type, elements []zng.Element) *zng.Type
 	return enumType
 }
 
+func (c *Context) LookupTypeDef(name string) *zng.TypeAlias {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.typedefs[name]
+}
+
 func (c *Context) LookupTypeAlias(name string, target zng.Type) (*zng.TypeAlias, error) {
 	key := aliasKey(name)
 	c.mu.Lock()
@@ -325,6 +333,7 @@ func (c *Context) LookupTypeAlias(name string, target zng.Type) (*zng.TypeAlias,
 		}
 	}
 	typ := zng.NewTypeAlias(-1, name, target)
+	c.typedefs[name] = typ
 	c.addTypeWithLock(key, typ)
 	return typ, nil
 }

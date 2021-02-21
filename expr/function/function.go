@@ -22,56 +22,14 @@ type Interface interface {
 	Call([]zng.Value) (zng.Value, error)
 }
 
-var deprecated = map[string]string{
-	"Math.abs":              "abs",
-	"Math.ceil":             "ceil",
-	"Math.floor":            "floor",
-	"Math.log":              "log",
-	"Math.max":              "max",
-	"Math.min":              "min",
-	"Math.mod":              "mod",
-	"Math.round":            "round",
-	"Math.pow":              "pow",
-	"Math.sqrt":             "sqrt",
-	"String.byteLen":        "len",
-	"String.formatFloat":    "type cast, e.g., <float-value>:string",
-	"String.formatInt":      "type cast, e.g., <int-value>:string",
-	"String.formatIp":       "type cast, e.g., <ip-value>:string",
-	"String.parseFloat":     "type cast, e.g., <string-value>:float64",
-	"String.parseInt":       "type cast, e.g., <string-value>:int64",
-	"String.parseIp":        "type cast, e.g., <string-value>:ip",
-	"String.replace":        "replace",
-	"String.runeLen":        "rune_len",
-	"String.toLower":        "to_lower",
-	"String.toUpper":        "to_upper",
-	"String.trim":           "trim",
-	"Time.fromISO":          "iso",
-	"Time.fromMilliseconds": "msec and ype cast, e.g., msec(<msec-value>):time",
-	"Time.fromMicroseconds": "usec and type cast, e.g., usec(<usec-value>):time",
-	"Time.fromNanoseconds":  "type cast, e.g., <nsec-value>:time",
-	"Time.trunc":            "trunc",
-	"toBase64":              "to_base64",
-	"fromBase64":            "from_base64",
-}
-
-func isDeprecated(name string) error {
-	msg, ok := deprecated[name]
-	if ok {
-		return fmt.Errorf("function is deprecated: use %s", msg)
-	}
-	return nil
-}
-
-func New(zctx *resolver.Context, name string, narg int) (Interface, error) {
-	if err := isDeprecated(name); err != nil {
-		return nil, err
-	}
+func New(zctx *resolver.Context, name string, narg int) (Interface, bool, error) {
 	argmin := 1
 	argmax := 1
+	var root bool
 	var f Interface
 	switch name {
 	default:
-		return nil, ErrNoSuchFunction
+		return nil, false, ErrNoSuchFunction
 	case "len":
 		f = &lenFn{}
 	case "abs":
@@ -80,6 +38,9 @@ func New(zctx *resolver.Context, name string, narg int) (Interface, error) {
 		f = &ceil{}
 	case "floor":
 		f = &floor{}
+	case "join":
+		argmax = 2
+		f = &join{}
 	case "log":
 		f = &log{}
 	case "max":
@@ -116,6 +77,10 @@ func New(zctx *resolver.Context, name string, narg int) (Interface, error) {
 		f = &iso{}
 	case "sec":
 		f = &sec{}
+	case "split":
+		argmin = 2
+		argmax = 2
+		f = newSplit(zctx)
 	case "msec":
 		f = &msec{}
 	case "usec":
@@ -126,6 +91,14 @@ func New(zctx *resolver.Context, name string, narg int) (Interface, error) {
 		f = &trunc{}
 	case "typeof":
 		f = &typeOf{zson.NewTypeTable(zctx)}
+	case "fields":
+		typ := zctx.LookupTypeArray(zng.TypeString)
+		f = &fields{types: zson.NewTypeTable(zctx), typ: typ}
+	case "is":
+		argmin = 1
+		argmax = 2
+		root = true
+		f = &is{types: zson.NewTypeTable(zctx)}
 	case "iserr":
 		f = &isErr{}
 	case "to_base64":
@@ -137,12 +110,12 @@ func New(zctx *resolver.Context, name string, narg int) (Interface, error) {
 		f = &networkOf{}
 	}
 	if argmin != -1 && narg < argmin {
-		return nil, ErrTooFewArgs
+		return nil, false, ErrTooFewArgs
 	}
 	if argmax != -1 && narg > argmax {
-		return nil, ErrTooManyArgs
+		return nil, false, ErrTooManyArgs
 	}
-	return f, nil
+	return f, root, nil
 }
 
 func zverr(msg string, err error) (zng.Value, error) {
@@ -190,6 +163,31 @@ type isErr struct{}
 
 func (*isErr) Call(args []zng.Value) (zng.Value, error) {
 	if args[0].IsError() {
+		return zng.True, nil
+	}
+	return zng.False, nil
+}
+
+type is struct {
+	types *zson.TypeTable
+}
+
+func (i *is) Call(args []zng.Value) (zng.Value, error) {
+	zvSubject := args[0]
+	zvTypeVal := args[1]
+	if len(args) == 3 {
+		zvSubject = args[1]
+		zvTypeVal = args[2]
+	}
+	if !zvTypeVal.IsStringy() {
+		return zng.False, nil
+	}
+	s, err := zng.DecodeString(zvTypeVal.Bytes)
+	if err != nil {
+		return zng.Value{}, err
+	}
+	typ, err := i.types.LookupType(s)
+	if err == nil && typ == zvSubject.Type {
 		return zng.True, nil
 	}
 	return zng.False, nil

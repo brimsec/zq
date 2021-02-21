@@ -11,20 +11,17 @@ import (
 )
 
 var (
-	ErrMissingField      = errors.New("record missing a field")
-	ErrExtraField        = errors.New("record with extra field")
-	ErrNotContainer      = errors.New("expected container type, got primitive")
-	ErrNotPrimitive      = errors.New("expected primitive type, got container")
-	ErrDescriptorExists  = errors.New("zng descriptor exists")
-	ErrDescriptorInvalid = errors.New("zng descriptor out of range")
-	ErrBadValue          = errors.New("malformed zng value")
-	ErrBadFormat         = errors.New("malformed zng record")
-	ErrTypeMismatch      = errors.New("type/value mismatch")
-	ErrNoSuchField       = errors.New("no such field in zng record")
-	ErrNoSuchColumn      = errors.New("no such column in zng record")
-	ErrColumnMismatch    = errors.New("zng record mismatch between columns in type and columns in value")
-	ErrCorruptTd         = errors.New("corrupt type descriptor")
-	ErrCorruptColumns    = errors.New("wrong number of columns in zng record value")
+	ErrMissingField   = errors.New("record missing a field")
+	ErrExtraField     = errors.New("record with extra field")
+	ErrNotContainer   = errors.New("expected container type, got primitive")
+	ErrNotPrimitive   = errors.New("expected primitive type, got container")
+	ErrTypeIDExists   = errors.New("zng type ID exists")
+	ErrTypeIDInvalid  = errors.New("zng type ID out of range")
+	ErrBadValue       = errors.New("malformed zng value")
+	ErrBadFormat      = errors.New("malformed zng record")
+	ErrTypeMismatch   = errors.New("type/value mismatch")
+	ErrColumnMismatch = errors.New("zng record mismatch between columns in type and columns in value")
+	ErrCorruptColumns = errors.New("wrong number of columns in zng record value")
 )
 
 type RecordTypeError struct {
@@ -241,7 +238,7 @@ func (r *Record) Slice(column int) (zcode.Bytes, error) {
 	var zv zcode.Bytes
 	for i, it := 0, r.Raw.Iter(); i <= column; i++ {
 		if it.Done() {
-			return nil, ErrNoSuchColumn
+			return nil, ErrMissing
 		}
 		var err error
 		zv, _, err = it.Next()
@@ -265,7 +262,7 @@ func (r *Record) Value(col int) Value {
 func (r *Record) ValueByField(field string) (Value, error) {
 	col, ok := r.ColumnOfField(field)
 	if !ok {
-		return Value{}, ErrNoSuchField
+		return Value{}, ErrMissing
 	}
 	return r.Value(col), nil
 }
@@ -281,7 +278,7 @@ func (r *Record) TypeOfColumn(col int) Type {
 func (r *Record) Access(field string) (Value, error) {
 	col, ok := r.ColumnOfField(field)
 	if !ok {
-		return Value{}, ErrNoSuchField
+		return Value{}, ErrMissing
 	}
 	return r.Value(col), nil
 }

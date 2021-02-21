@@ -1,5 +1,5 @@
 zql: |
-   cut x = shape(., "({a:{a:float64,b:float64}})")
+   cut x = shape(., {a:{a:float64,b:float64}})
 
 input: |
   {"a": {"a": 1}}

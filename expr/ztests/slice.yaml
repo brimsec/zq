@@ -1,0 +1,14 @@
+zql: "cut a1=a[1:-1],a2=a[1:],a3=a[:1],a4=a[:-1],a5=a[:-100],a6=a[-1:],a7=a[-2:-1],a8=(a!=null and len(a)>0) ? a[:a[0]-8] : null"
+
+input: |
+  #0:record[a:array[int32]]
+  0:[[10;11;12;13;]]
+  0:[-;]
+  0:[[]]
+
+output: |
+  #0:record[a1:array[int32],a2:array[int32],a3:array[int32],a4:array[int32],a5:array[int32],a6:array[int32],a7:array[int32],a8:array[int32]]
+  0:[[11;12;][11;12;13;][10;][10;11;12;][][13;][12;][10;11;]]
+  #1:record[a1:array[int32],a2:array[int32],a3:array[int32],a4:array[int32],a5:array[int32],a6:array[int32],a7:array[int32],a8:null]
+  1:[-;-;-;-;-;-;-;-;]
+  1:[[][][][][][][]-;]

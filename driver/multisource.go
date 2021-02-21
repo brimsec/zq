@@ -5,7 +5,7 @@ import (
 	"io"
 
 	"github.com/brimsec/zq/api"
-	"github.com/brimsec/zq/compiler"
+	"github.com/brimsec/zq/compiler/kernel"
 	"github.com/brimsec/zq/field"
 	"github.com/brimsec/zq/pkg/nano"
 	"github.com/brimsec/zq/zbuf"
@@ -44,6 +44,6 @@ type ScannerCloser interface {
 }
 
 type SourceFilter struct {
-	Filter *compiler.Filter
+	Filter *kernel.Filter
 	Span   nano.Span
 }

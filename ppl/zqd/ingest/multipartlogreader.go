@@ -9,7 +9,7 @@ import (
 	"mime/multipart"
 	"sync/atomic"
 
-	"github.com/brimsec/zq/ast"
+	"github.com/brimsec/zq/compiler/ast"
 	"github.com/brimsec/zq/driver"
 	"github.com/brimsec/zq/zbuf"
 	"github.com/brimsec/zq/zio"

@@ -1,5 +1,5 @@
 zql: |
-   put id=shape(id, "({orig_h: ip, orig_p: port=(uint16), vlan: uint16, resp_h:ip,resp_p:port})")
+   put .=shape(., {id: {orig_h: ip, orig_p: port=(uint16), vlan: uint16, resp_h:ip,resp_p:port}})
 
 input: |
    #port=uint16
@@ -10,4 +10,3 @@ output: |
    #port=uint16
    #0:record[id:record[orig_h:ip,orig_p:port,vlan:uint16,resp_h:ip,resp_p:port]]
    0:[[1.2.3.4;1234;-;5.6.7.8;53;]]
-

@@ -1,0 +1,13 @@
+zql: put s1=sum(select(.)), s2=sum(select(.).filter($>=3))
+
+input: |
+  #0:record[a:int32,b:int32,c:int32]
+  0:[1;2;3;]
+  0:[2;3;4;]
+  0:[3;4;5;]
+
+output: |
+  #0:record[a:int32,b:int32,c:int32,s1:int64,s2:int64]
+  0:[1;2;3;6;3;]
+  0:[2;3;4;9;7;]
+  0:[3;4;5;12;12;]

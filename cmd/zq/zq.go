@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"strings"
 
 	"github.com/brimsec/zq/cli"
 	"github.com/brimsec/zq/cli/inputflags"
@@ -22,7 +23,7 @@ import (
 
 var Zq = &charm.Spec{
 	Name:        "zq",
-	Usage:       "zq [ options ] [ zql ] file [ file ... ]",
+	Usage:       "zq [ options ] [ z ] file [ file ... ]",
 	Short:       "command line logs processor",
 	HiddenFlags: "cpuprofile,memprofile,pathregexp",
 	Long: `
@@ -49,17 +50,17 @@ beginning of stream will determine the format.
 The output format is text zng by default, but can be overridden with -f.
 
 After the options, the query may be specified as a
-single argument conforming with ZQL syntax; i.e., it should be quoted as
+single argument conforming with Z syntax; i.e., it should be quoted as
 a single string in the shell.
-If the first argument is a path to a valid file rather than a ZQL query,
-then the ZQL expression is assumed to be "*", i.e., match and output all
-of the input.  If the first argument is both valid ZQL and an existing file,
+If the first argument is a path to a valid file rather than a Z query,
+then the Z expression is assumed to be "*", i.e., match and output all
+of the input.  If the first argument is both valid Z and an existing file,
 then the file overrides.
 
-The ZQL query may be specified in a source file using -z, which is particularly
+The Z query text may include files using -I, which is particularly
 convenient when a large, complex query spans multiple lines.  In this case,
-a ZQL query string additionaly specified on the command line will be interpreted
-as a file path, which typically will result in a "not found" error.
+these Z files are concatenated together along with the command-line Z text
+in the order appearing on the command-line.
 
 See the zq source repository for more information:
 
@@ -80,7 +81,7 @@ type Command struct {
 	quiet       bool
 	stopErr     bool
 	parallel    bool
-	zqlPath     string
+	includes    includes
 	inputFlags  inputflags.Flags
 	outputFlags outputflags.Flags
 	procFlags   procflags.Flags
@@ -105,8 +106,19 @@ func New(f *flag.FlagSet) (charm.Command, error) {
 	f.BoolVar(&c.quiet, "q", false, "don't display zql warnings")
 	f.BoolVar(&c.stopErr, "e", true, "stop upon input errors")
 	f.BoolVar(&c.parallel, "P", false, "read two or more files into parallel-input zql query")
-	f.StringVar(&c.zqlPath, "z", "", "source file containing zql query text")
+	f.Var(&c.includes, "I", "source file containing Z query text (may be used multiple times)")
 	return c, nil
+}
+
+type includes []string
+
+func (i includes) String() string {
+	return strings.Join(i, ",")
+}
+
+func (i *includes) Set(value string) error {
+	*i = append(*i, value)
+	return nil
 }
 
 func (c *Command) Run(args []string) error {
@@ -119,25 +131,26 @@ func (c *Command) Run(args []string) error {
 		return err
 	}
 	paths := args
-	zqlSrc := "*"
-	if cli.FileExists(paths[0]) || s3io.IsS3Path(paths[0]) {
-		if c.zqlPath != "" {
-			b, err := ioutil.ReadFile(c.zqlPath)
+	var zqlSrc string
+	if len(c.includes) > 0 {
+		for _, path := range c.includes {
+			b, err := ioutil.ReadFile(path)
 			if err != nil {
 				return err
 			}
-			zqlSrc = string(b)
+			zqlSrc += "\n" + string(b)
 		}
-	} else {
-		if c.zqlPath != "" || len(paths) == 1 {
-			return fmt.Errorf("not found: %s", paths[0])
-		}
-		zqlSrc = paths[0]
+	}
+	if !cli.FileExists(paths[0]) && !s3io.IsS3Path(paths[0]) {
+		zqlSrc += paths[0]
 		paths = paths[1:]
+	}
+	if zqlSrc == "" {
+		zqlSrc = "*"
 	}
 	query, err := compiler.ParseProc(zqlSrc)
 	if err != nil {
-		return fmt.Errorf("parse error: %s", err)
+		return fmt.Errorf("zq: parse error: %s\n=== with this input ===\n%s\n==== end of input =====", err, zqlSrc)
 	}
 	if _, err := rlimit.RaiseOpenFilesLimit(); err != nil {
 		return err

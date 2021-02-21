@@ -4,41 +4,39 @@ import (
 	"context"
 	"errors"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/service/s3/s3iface"
 	"github.com/brimsec/zq/pkg/s3io"
 	"github.com/brimsec/zq/zqe"
 )
 
-var defaultS3Source = &s3Source{}
-var _ Source = defaultS3Source
-var _ ReplacerAble = defaultS3Source
+var defaultS3Source = &s3Source{Client: s3io.NewClient(nil)}
+
+var (
+	_ Source       = defaultS3Source
+	_ ReplacerAble = defaultS3Source
+)
 
 type s3Source struct {
-	Config *aws.Config
+	Client s3iface.S3API
 }
 
 func (s *s3Source) NewWriter(ctx context.Context, u URI) (io.WriteCloser, error) {
-	w, err := s3io.NewWriter(ctx, u.String(), s.Config)
+	w, err := s3io.NewWriter(ctx, u.String(), s.Client)
 	return w, wrapErr(err)
 }
 
 func (s *s3Source) NewReader(ctx context.Context, u URI) (Reader, error) {
-	r, err := s3io.NewReader(ctx, u.String(), s.Config)
+	r, err := s3io.NewReader(ctx, u.String(), s.Client)
 	return r, wrapErr(err)
 }
 
 func (s *s3Source) ReadFile(ctx context.Context, u URI) ([]byte, error) {
-	r, err := NewReader(ctx, u)
-	if err != nil {
-		return nil, err
-	}
-	defer r.Close()
-	return ioutil.ReadAll(r)
+	b, err := s3io.ReadFile(ctx, u.String(), s.Client)
+	return b, wrapErr(err)
 }
 
 func (s *s3Source) WriteFile(ctx context.Context, d []byte, u URI) error {
@@ -54,15 +52,15 @@ func (s *s3Source) WriteFile(ctx context.Context, d []byte, u URI) error {
 }
 
 func (s *s3Source) Remove(ctx context.Context, u URI) error {
-	return wrapErr(s3io.Remove(ctx, u.String(), s.Config))
+	return wrapErr(s3io.Remove(ctx, u.String(), s.Client))
 }
 
 func (s *s3Source) RemoveAll(ctx context.Context, u URI) error {
-	return wrapErr(s3io.RemoveAll(ctx, u.String(), s.Config))
+	return wrapErr(s3io.RemoveAll(ctx, u.String(), s.Client))
 }
 
 func (s *s3Source) Exists(ctx context.Context, u URI) (bool, error) {
-	ok, err := s3io.Exists(ctx, u.String(), s.Config)
+	ok, err := s3io.Exists(ctx, u.String(), s.Client)
 	return ok, wrapErr(err)
 }
 
@@ -76,7 +74,7 @@ func (i info) ModTime() time.Time { return i.Info.ModTime }
 func (i info) IsDir() bool        { return i.Info.IsDir }
 
 func (s *s3Source) Stat(ctx context.Context, u URI) (Info, error) {
-	entry, err := s3io.Stat(ctx, u.String(), s.Config)
+	entry, err := s3io.Stat(ctx, u.String(), s.Client)
 	if err != nil {
 		return nil, wrapErr(err)
 	}
@@ -84,12 +82,12 @@ func (s *s3Source) Stat(ctx context.Context, u URI) (Info, error) {
 }
 
 func (s *s3Source) NewReplacer(ctx context.Context, u URI) (Replacer, error) {
-	r, err := s3io.NewReplacer(ctx, u.String(), s.Config)
+	r, err := s3io.NewReplacer(ctx, u.String(), s.Client)
 	return r, wrapErr(err)
 }
 
 func (s *s3Source) ReadDir(ctx context.Context, uri URI) ([]Info, error) {
-	entries, err := s3io.List(ctx, uri.String(), nil)
+	entries, err := s3io.List(ctx, uri.String(), s.Client)
 	if err != nil {
 		return nil, err
 	}

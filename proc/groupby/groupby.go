@@ -264,7 +264,7 @@ func (a *Aggregator) Consume(r *zng.Record) error {
 	for i, keyExpr := range a.keyExprs {
 		zv, err := keyExpr.Eval(r)
 		if err != nil {
-			if errors.Is(err, expr.ErrNoSuchField) {
+			if errors.Is(err, zng.ErrMissing) {
 				// block this input type
 				a.block[id] = struct{}{}
 				return nil

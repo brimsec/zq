@@ -1,0 +1,20 @@
+script: |
+  zq -t "s=a*b" in.tzng
+  echo ===
+  zq -t "s=a*b+1" in.tzng
+inputs:
+  - name: in.tzng
+    data: |
+      #0:record[s:string]
+      0:[axb;]
+      #1:record[s:int32,a:int32,b:int32]
+      1:[7;2;3;]
+      1:[8;2;3;]
+outputs:
+  - name: stdout
+    data: |
+      #0:record[s:string]
+      0:[axb;]
+      ===
+      #0:record[s:int32,a:int32,b:int32]
+      0:[7;2;3;]

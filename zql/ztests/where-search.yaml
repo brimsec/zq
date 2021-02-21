@@ -1,0 +1,24 @@
+script: |
+  zq -t "count() where foo" in.tzng
+  echo ===
+  zq -t "foo | count()" in.tzng
+
+inputs:
+  - name: in.tzng
+    data: |
+      #0:record[_path:string]
+      0:[conn;]
+      0:[foo;]
+      0:[conn;]
+      #1:record[a:array[string]]
+      1:[[foo;bar;]]
+      1:[[bar;]]
+
+outputs:
+  - name: stdout
+    data: |
+      #0:record[count:uint64]
+      0:[2;]
+      ===
+      #0:record[count:uint64]
+      0:[2;]

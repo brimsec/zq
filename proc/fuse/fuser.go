@@ -1,10 +1,10 @@
 package fuse
 
 import (
-	"errors"
-
+	"github.com/brimsec/zq/expr"
+	"github.com/brimsec/zq/expr/agg"
+	"github.com/brimsec/zq/proc/rename"
 	"github.com/brimsec/zq/proc/spill"
-	"github.com/brimsec/zq/zcode"
 	"github.com/brimsec/zq/zng"
 	"github.com/brimsec/zq/zng/resolver"
 )
@@ -16,18 +16,13 @@ type Fuser struct {
 	zctx        *resolver.Context
 	memMaxBytes int
 
-	nbytes    int
-	recs      []*zng.Record
-	typeSlots map[zng.Type][]int
-	slots     []slot
-	spiller   *spill.File
-	types     map[zng.Type]int
-	uberType  *zng.TypeRecord
-}
+	nbytes  int
+	recs    []*zng.Record
+	spiller *spill.File
+	types   map[zng.Type]int
 
-type slot struct {
-	zv        zcode.Bytes
-	container bool
+	shaper   *expr.Shaper
+	renamers map[int]*rename.Function
 }
 
 // NewFuser returns a new Fuser.  The Fuser buffers records in memory until
@@ -38,6 +33,7 @@ func NewFuser(zctx *resolver.Context, memMaxBytes int) *Fuser {
 		zctx:        zctx,
 		memMaxBytes: memMaxBytes,
 		types:       make(map[zng.Type]int),
+		renamers:    make(map[int]*rename.Function),
 	}
 }
 
@@ -85,29 +81,30 @@ func (f *Fuser) stash(rec *zng.Record) error {
 }
 
 func (f *Fuser) finished() bool {
-	return f.typeSlots != nil
+	return f.shaper != nil
 }
 
 func (f *Fuser) finish() error {
-	uber := newSchema()
-	// typeSlots provides a map from a type to a slice of integers
-	// that represent the column position in the uber schema for each column
-	// of the input record type.
-	f.typeSlots = make(map[zng.Type][]int)
-	for _, typ := range typesInOrder(f.types) {
-		if typ != nil {
-			f.typeSlots[typ] = uber.mixin(zng.AliasedType(typ).(*zng.TypeRecord))
-		}
-	}
-	var err error
-	f.uberType, err = f.zctx.LookupTypeRecord(uber.columns)
+	uber, err := agg.NewSchema(f.zctx)
 	if err != nil {
 		return err
 	}
-	f.slots = make([]slot, len(f.uberType.Columns))
-	for k := range f.slots {
-		f.slots[k].container = zng.IsContainerType(f.uberType.Columns[k].Type)
+	for _, typ := range typesInOrder(f.types) {
+		if typ != nil {
+			if err = uber.Mixin(zng.AliasedType(typ).(*zng.TypeRecord)); err != nil {
+				return err
+			}
+		}
 	}
+
+	f.shaper, err = expr.NewShaperType(f.zctx, &expr.RootRecord{}, uber.Type, expr.Fill|expr.Order)
+	if err != nil {
+		return err
+	}
+	for typ, renames := range uber.Renames {
+		f.renamers[typ] = rename.NewFunction(f.zctx, renames.Srcs, renames.Dsts)
+	}
+
 	if f.spiller != nil {
 		return f.spiller.Rewind(f.zctx)
 	}
@@ -137,22 +134,15 @@ func (f *Fuser) Read() (*zng.Record, error) {
 	if rec == nil || err != nil {
 		return nil, err
 	}
-	for k := range f.slots {
-		f.slots[k].zv = nil
-	}
-	slotList := f.typeSlots[rec.Type]
-	it := rec.Raw.Iter()
-	for _, slot := range slotList {
-		zv, _, err := it.Next()
+
+	if renamer, ok := f.renamers[rec.Type.ID()]; ok {
+		rec, err = renamer.Apply(rec)
 		if err != nil {
 			return nil, err
 		}
-		f.slots[slot].zv = zv
 	}
-	if !it.Done() {
-		return nil, errors.New("column mismatch in fuse processor")
-	}
-	return splice(f.uberType, f.slots), nil
+
+	return f.shaper.Apply(rec)
 }
 
 func (f *Fuser) next() (*zng.Record, error) {
@@ -166,16 +156,4 @@ func (f *Fuser) next() (*zng.Record, error) {
 	}
 	return rec, nil
 
-}
-
-func splice(typ *zng.TypeRecord, slots []slot) *zng.Record {
-	var out zcode.Bytes
-	for _, s := range slots {
-		if s.container {
-			out = zcode.AppendContainer(out, s.zv)
-		} else {
-			out = zcode.AppendPrimitive(out, s.zv)
-		}
-	}
-	return zng.NewRecord(typ, out)
 }

@@ -5,9 +5,9 @@ import (
 	"flag"
 
 	"github.com/brimsec/zq/api/client"
-	"github.com/brimsec/zq/ast"
 	"github.com/brimsec/zq/cmd/zapi/cmd"
 	"github.com/brimsec/zq/compiler"
+	"github.com/brimsec/zq/compiler/ast"
 )
 
 type postFlags struct {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path"
 	"sync"
+	"time"
 
 	"github.com/brimsec/zq/api"
 	"github.com/brimsec/zq/pkg/iosrc"
@@ -24,13 +25,12 @@ import (
 )
 
 type Manager struct {
-	alphaFileMigrator *filestore.Migrator
-	compactor         *compactor
-	db                db.DB
-	immcache          immcache.ImmutableCache
-	logger            *zap.Logger
-	registerer        prometheus.Registerer
-	rootPath          iosrc.URI
+	db         db.DB
+	immcache   immcache.ImmutableCache
+	logger     *zap.Logger
+	notifier   Notifier
+	registerer prometheus.Registerer
+	rootPath   iosrc.URI
 
 	// We keep instances of any loaded filestore because the seek indexes
 	// we create for them are not persisted to disk. We are unlikely to
@@ -43,17 +43,24 @@ type Manager struct {
 	deleted prometheus.Counter
 }
 
-func NewManager(ctx context.Context, logger *zap.Logger, registerer prometheus.Registerer, root iosrc.URI, db db.DB, icache immcache.ImmutableCache) (*Manager, error) {
+type Notifier interface {
+	Shutdown()
+	SpaceCreated(context.Context, api.SpaceID)
+	SpaceDeleted(context.Context, api.SpaceID)
+	SpaceWritten(context.Context, api.SpaceID)
+}
+
+func NewManager(ctx context.Context, logger *zap.Logger, n Notifier, registerer prometheus.Registerer, root iosrc.URI, db db.DB, icache immcache.ImmutableCache) (*Manager, error) {
 	factory := promauto.With(registerer)
 	m := &Manager{
 		db:         db,
 		immcache:   icache,
 		logger:     logger.Named("manager"),
+		notifier:   n,
 		registerer: registerer,
 		rootPath:   root,
 
-		alphaFileMigrator: filestore.NewMigrator(ctx),
-		filestores:        make(map[api.SpaceID]*filestore.Storage),
+		filestores: make(map[api.SpaceID]*filestore.Storage),
 
 		created: factory.NewCounter(prometheus.CounterOpts{
 			Name: "spaces_created_total",
@@ -64,31 +71,15 @@ func NewManager(ctx context.Context, logger *zap.Logger, registerer prometheus.R
 			Help: "Number of spaces deleted.",
 		}),
 	}
-	m.compactor = newCompactor(m)
-	m.spawnAlphaMigrations(ctx)
+	if m.notifier == nil {
+		m.notifier = newCompactor(m)
+	}
 	m.logger.Info("Loaded", zap.String("root", root.String()))
 	return m, nil
 }
 
 func (m *Manager) Shutdown() {
-	m.compactor.close()
-}
-
-func (m *Manager) spawnAlphaMigrations(ctx context.Context) {
-	rows, err := m.db.ListSpaces(ctx, auth.AnonymousTenantID)
-	if err != nil {
-		return
-	}
-	for _, row := range rows {
-		if row.Storage.Kind != api.FileStore {
-			continue
-		}
-		store, err := m.getStorage(ctx, row.ID, row.DataURI, row.Storage)
-		if err != nil {
-			continue
-		}
-		m.alphaFileMigrator.Add(store.(*filestore.Storage))
-	}
+	m.notifier.Shutdown()
 }
 
 func (m *Manager) CreateSpace(ctx context.Context, req api.SpacePostRequest) (api.Space, error) {
@@ -156,8 +147,9 @@ func (m *Manager) CreateSpace(ctx context.Context, req api.SpacePostRequest) (ap
 		return api.Space{}, err
 	}
 
-	si := rowToSpace(row)
 	m.created.Inc()
+	si := rowToSpace(row)
+	m.notifier.SpaceCreated(ctx, si.ID)
 	return si, nil
 }
 
@@ -178,12 +170,13 @@ func (m *Manager) GetPcapStorage(ctx context.Context, id api.SpaceID) (*pcapstor
 }
 
 type writeNotifier struct {
-	c  *compactor
-	id api.SpaceID
+	ctx      context.Context // XXX We should pass a context to WriteNotify instead.
+	id       api.SpaceID
+	notifier Notifier
 }
 
-func (n writeNotifier) WriteNotify() {
-	n.c.WriteComplete(n.id)
+func (w writeNotifier) WriteNotify() {
+	w.notifier.SpaceWritten(w.ctx, w.id)
 }
 
 func (m *Manager) getStorage(ctx context.Context, id api.SpaceID, daturi iosrc.URI, cfg api.StorageConfig) (storage.Storage, error) {
@@ -202,7 +195,7 @@ func (m *Manager) getStorage(ctx context.Context, id api.SpaceID, daturi iosrc.U
 		}
 		return st, nil
 	case api.ArchiveStore:
-		wn := &writeNotifier{c: m.compactor, id: id}
+		wn := &writeNotifier{ctx, id, m.notifier}
 		return archivestore.Load(ctx, daturi, wn, cfg.Archive, m.immcache)
 	default:
 		return nil, zqe.E(zqe.Invalid, "unknown storage kind: %s", cfg.Kind)
@@ -338,5 +331,45 @@ func (m *Manager) DeleteSpace(ctx context.Context, id api.SpaceID) error {
 		return err
 	}
 	m.deleted.Inc()
+	m.notifier.SpaceDeleted(ctx, id)
+	return nil
+}
+
+func (m *Manager) Compact(ctx context.Context, id api.SpaceID) error {
+	return m.withArchiveStorage(ctx, id, "Compact", func(s *archivestore.Storage, l *zap.Logger) error {
+		return s.Compact(ctx, l)
+	})
+}
+
+func (m *Manager) Purge(ctx context.Context, id api.SpaceID) error {
+	return m.withArchiveStorage(ctx, id, "Purge", func(s *archivestore.Storage, l *zap.Logger) error {
+		return s.Purge(ctx, l)
+	})
+}
+
+type withArchiveStoreFunc func(*archivestore.Storage, *zap.Logger) error
+
+func (m *Manager) withArchiveStorage(ctx context.Context, id api.SpaceID, op string, f withArchiveStoreFunc) error {
+	l := m.logger.With(zap.Stringer("space_id", id))
+	s, err := m.GetStorage(ctx, id)
+	if err != nil {
+		l.Warn(op+" failed", zap.Error(err))
+		return err
+	}
+	as, ok := s.(*archivestore.Storage)
+	if !ok {
+		return nil
+	}
+	l.Info(op + " started")
+	start := time.Now()
+	if err := f(as, l); err != nil {
+		if err == context.Canceled {
+			l.Info(op + " canceled")
+		} else {
+			l.Warn(op+" failed", zap.Error(err))
+		}
+		return err
+	}
+	l.Info(op+" completed", zap.Duration("duration", time.Since(start)))
 	return nil
 }

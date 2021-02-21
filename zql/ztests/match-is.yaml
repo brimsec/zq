@@ -1,0 +1,15 @@
+zql: match(a) is(s2,'string')
+
+input: |
+  #0:record[s1:string,s2:string]
+  0:[a;b;]
+  0:[b;b;]
+  #1:record[s1:string,s2:int32]
+  1:[a;0;]
+  1:[b;0;]
+  0:[b;a;]
+
+output: |
+  #0:record[s1:string,s2:string]
+  0:[a;b;]
+  0:[b;a;]

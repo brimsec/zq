@@ -13,7 +13,6 @@ import (
 	"github.com/brimsec/zq/pkg/iosrc"
 	"github.com/brimsec/zq/zbuf"
 	"github.com/brimsec/zq/zio"
-	"github.com/brimsec/zq/zio/azngio"
 	"github.com/brimsec/zq/zio/detector"
 	"github.com/brimsec/zq/zio/ndjsonio"
 	"github.com/brimsec/zq/zio/zngio"
@@ -85,7 +84,6 @@ func LoadJSONConfig(path string) (*ndjsonio.TypeConfig, error) {
 
 func (f *Flags) Open(zctx *resolver.Context, paths []string, stopOnErr bool) ([]zbuf.Reader, error) {
 	var readers []zbuf.Reader
-	var warned bool
 	for _, path := range paths {
 		if path == "-" {
 			path = iosrc.Stdin
@@ -99,14 +97,7 @@ func (f *Flags) Open(zctx *resolver.Context, paths []string, stopOnErr bool) ([]
 			fmt.Fprintln(os.Stderr, err)
 			continue
 		}
-		if _, ok := file.Reader.(*azngio.Reader); ok {
-			warned = true
-			fmt.Fprintf(os.Stderr, "warning: %s: converting from alpha zng to beta zng (slow)\n", path)
-		}
 		readers = append(readers, file)
-	}
-	if warned {
-		fmt.Fprintln(os.Stderr, "warning: update zng by running 'zq -o new.zng old.zng'")
 	}
 	return readers, nil
 }

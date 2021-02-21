@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/brimsec/zq/ast"
 	"github.com/brimsec/zq/compiler"
+	"github.com/brimsec/zq/compiler/ast"
 	"github.com/brimsec/zq/zbuf"
 	"github.com/brimsec/zq/zcode"
 	"github.com/brimsec/zq/zio/tzngio"
@@ -45,7 +45,9 @@ func runCasesHelper(t *testing.T, tzng string, cases []testcase, expectBufferFil
 
 			proc, err := compiler.ParseProc(c.filter)
 			require.NoError(t, err, "filter: %q", c.filter)
-			filterExpr := proc.(*ast.FilterProc).Filter
+			fproc := filterProc(proc)
+			require.NotNil(t, fproc)
+			filterExpr := fproc.Filter
 
 			filterAST := compiler.NewFilter(zctx, filterExpr)
 			f, err := filterAST.AsFilter()
@@ -84,10 +86,10 @@ func TestFilters(t *testing.T) {
 #0:record[stringset:set[bstring]]
 0:[[abc;xyz;]]`
 	runCases(t, tzng, []testcase{
-		{"abc in stringset", true},
-		{"xyz in stringset", true},
-		{"ab in stringset", false},
-		{"abcd in stringset", false},
+		{"'abc' in stringset", true},
+		{"'xyz' in stringset", true},
+		{"'ab'in stringset", false},
+		{"'abcd' in stringset", false},
 	})
 
 	// Test escaped bstrings inside a set
@@ -96,9 +98,9 @@ func TestFilters(t *testing.T) {
 0:[[a\x3bb;xyz;]]`
 	runCases(t, tzng, []testcase{
 		{"\"a;b\" in stringset", true},
-		{"a in stringset", false},
-		{"b in stringset", false},
-		{"xyz in stringset", true},
+		{"'a' in stringset", false},
+		{"'b' in stringset", false},
+		{"'xyz' in stringset", true},
 	})
 
 	// Test array membership with "in"
@@ -106,10 +108,10 @@ func TestFilters(t *testing.T) {
 #0:record[stringvec:array[bstring]]
 0:[[abc;xyz;]]`
 	runCases(t, tzng, []testcase{
-		{"abc in stringvec", true},
-		{"xyz in stringvec", true},
-		{"ab in stringvec", false},
-		{"abcd in stringvec", false},
+		{"'abc' in stringvec", true},
+		{"'xyz' in stringvec", true},
+		{"'ab' in stringvec", false},
+		{"'abcd' in stringvec", false},
 	})
 
 	// Test escaped bstrings inside an array
@@ -118,9 +120,9 @@ func TestFilters(t *testing.T) {
 0:[[a\x3bb;xyz;]]`
 	runCases(t, tzng, []testcase{
 		{"\"a;b\" in stringvec", true},
-		{"a in stringvec", false},
-		{"b in stringvec", false},
-		{"xyz in stringvec", true},
+		{"'a' in stringvec", false},
+		{"'b' in stringvec", false},
+		{"'xyz' in stringvec", true},
 	})
 
 	// Test membership in set of integers
@@ -130,7 +132,7 @@ func TestFilters(t *testing.T) {
 	runCases(t, tzng, []testcase{
 		{"2 in intset", true},
 		{"4 in intset", false},
-		{"abc in intset", false},
+		{"'abc' in intset", false},
 	})
 
 	// Test membership in array of integers
@@ -140,7 +142,7 @@ func TestFilters(t *testing.T) {
 	runCases(t, tzng, []testcase{
 		{"2 in intvec", true},
 		{"4 in intvec", false},
-		{"abc in intvec", false},
+		{"'abc' in intvec", false},
 	})
 
 	// Test membership in set of ip addresses
@@ -179,7 +181,6 @@ func TestFilters(t *testing.T) {
 		{"bogus.field = test", false},
 		{"nested.bogus = test", false},
 		{"* = test", false},
-		{"** = test", true},
 	})
 
 	// Test array of records
@@ -217,9 +218,7 @@ func TestFilters(t *testing.T) {
 		{"s=begin", false},
 		{"begin\\x01\\x02\\xffend", true},
 		{"s=begin\\x01\\x02\\xffend", true},
-		{"s=*\\x01\\x02*", false},
-		{"s=~*\\x01\\x02*", true},
-		{"s!~*\\x01\\x02*", false},
+		{"s=*\\x01\\x02*", true},
 	})
 
 	// Test unicode string comparison.  The following two records
@@ -440,15 +439,13 @@ func TestFilters(t *testing.T) {
 0:[hello;]`
 	runCases(t, tzng, []testcase{
 		{"s = hello", true},
-		{"s =~ hello", true},
-		{"s !~ hello", false},
+		{"s != hello", false},
 
 		// Also smoke test that globs work...
-		{"s = hell*", false},
-		{"s =~ hell*", true},
-		{"s =~ ell*", false},
-		{"s !~ hell*", false},
-		{"s !~ ell*", true},
+		{"s = hell*", true},
+		{"s = ell*", false},
+		{"s != hell*", false},
+		{"s != ell*", true},
 	})
 
 	// Test ip comparisons
@@ -459,10 +456,10 @@ func TestFilters(t *testing.T) {
 		{"a = 192.168.1.50", true},
 		{"a = 50.1.168.192", false},
 		{"a != 50.1.168.192", true},
-		{"a =~ 192.168.0.0/16", true},
-		{"a =~ 10.0.0.0/16", false},
-		{"a !~ 192.168.0.0/16", false},
-		{"a !~ 10.0.0.0/16", true},
+		{"a in 192.168.0.0/16", true},
+		{"a = 10.0.0.0/16", false},
+		{"a != 192.168.0.0/16", false},
+		{"a != 10.0.0.0/16", true},
 	})
 
 	// Test comparisons with an aliased type
@@ -516,12 +513,23 @@ func TestFilters(t *testing.T) {
 
 }
 
+func filterProc(p ast.Proc) *ast.FilterProc {
+	if seq, ok := p.(*ast.SequentialProc); ok {
+		p = seq.Procs[0]
+	}
+	if f, ok := p.(*ast.FilterProc); ok {
+		return f
+	}
+	return nil
+}
+
 func TestBadFilter(t *testing.T) {
 	t.Parallel()
-	proc, err := compiler.ParseProc(`s =~ \xa8*`)
+	proc, err := compiler.ParseProc(`s = \xa8*`)
 	require.NoError(t, err)
-	f := compiler.NewFilter(resolver.NewContext(), proc.(*ast.FilterProc).Filter)
+	fproc := filterProc(proc)
+	require.NotNil(t, fproc)
+	f := compiler.NewFilter(resolver.NewContext(), fproc.Filter)
 	_, err = f.AsFilter()
 	assert.Error(t, err, "Received error for bad glob")
-	assert.Contains(t, err.Error(), "invalid UTF-8", "Received good error message for invalid UTF-8 in a regexp")
 }

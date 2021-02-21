@@ -3,6 +3,7 @@ package zng
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"math"
 	"strconv"
 
@@ -76,6 +77,9 @@ func (t *TypeOfFloat64) ZSONOf(zv zcode.Bytes) string {
 	d, err := DecodeFloat64(zv)
 	if err != nil {
 		return badZng(err, t, zv)
+	}
+	if d == float64(int64(d)) {
+		return fmt.Sprintf("%d.", int64(d))
 	}
 	return strconv.FormatFloat(d, 'e', -1, 64)
 }

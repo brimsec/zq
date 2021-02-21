@@ -15,7 +15,6 @@ import (
 	"github.com/brimsec/zq/zng/resolver"
 )
 
-var ErrNoSuchField = errors.New("field is not present")
 var ErrIncompatibleTypes = coerce.ErrIncompatibleTypes
 var ErrIndexOutOfBounds = errors.New("array index out of bounds")
 var ErrNotContainer = errors.New("cannot apply in to a non-container")
@@ -123,17 +122,34 @@ func NewIn(elem, container Evaluator) *In {
 }
 
 func (i *In) Eval(rec *zng.Record) (zng.Value, error) {
+	elem, err := i.elem.Eval(rec)
+	if err != nil {
+		return elem, err
+	}
 	container, err := i.container.Eval(rec)
 	if err != nil {
 		return container, err
 	}
+	if typ := zng.AliasedType(container.Type); typ == zng.TypeNet {
+		n, err := zng.DecodeNet(container.Bytes)
+		if err != nil {
+			return zng.Value{}, err
+		}
+		if typ := zng.AliasedType(elem.Type); typ != zng.TypeIP {
+			return zng.Value{}, ErrIncompatibleTypes
+		}
+		a, err := zng.DecodeIP(elem.Bytes)
+		if err != nil {
+			return zng.Value{}, err
+		}
+		if n.IP.Equal(a.Mask(n.Mask)) {
+			return zng.True, nil
+		}
+		return zng.False, nil
+	}
 	typ := zng.InnerType(container.Type)
 	if typ == nil {
 		return zng.Value{}, ErrNotContainer
-	}
-	elem, err := i.elem.Eval(rec)
-	if err != nil {
-		return elem, err
 	}
 	iter := container.Bytes.Iter()
 	for {
@@ -680,17 +696,16 @@ func (c *Conditional) Eval(rec *zng.Record) (zng.Value, error) {
 }
 
 type Call struct {
-	zctx  *resolver.Context
-	name  string
-	fn    function.Interface
-	exprs []Evaluator
-	args  []zng.Value
+	zctx    *resolver.Context
+	fn      function.Interface
+	exprs   []Evaluator
+	args    []zng.Value
+	AddRoot bool
 }
 
-func NewCall(zctx *resolver.Context, name string, fn function.Interface, exprs []Evaluator) *Call {
+func NewCall(zctx *resolver.Context, fn function.Interface, exprs []Evaluator) *Call {
 	return &Call{
 		zctx:  zctx,
-		name:  name,
 		fn:    fn,
 		exprs: exprs,
 		args:  make([]zng.Value, len(exprs)),
@@ -708,22 +723,70 @@ func (c *Call) Eval(rec *zng.Record) (zng.Value, error) {
 	return c.fn.Call(c.args)
 }
 
-func NewCast(expr Evaluator, styp string) (Evaluator, error) {
+// A TyepFunc returns a type value of the named type (where the name is
+// a Z typedef).  It returns MISSING if the name doesn't exist.
+type TypeFunc struct {
+	name string
+	zctx *resolver.Context
+	zv   zng.Value
+}
+
+func NewTypeFunc(zctx *resolver.Context, name string) *TypeFunc {
+	return &TypeFunc{
+		name: name,
+		zctx: zctx,
+	}
+}
+
+func (t *TypeFunc) Eval(rec *zng.Record) (zng.Value, error) {
+	if t.zv.Bytes == nil {
+		typ := t.zctx.LookupTypeDef(t.name)
+		if typ == nil {
+			return zng.Missing, nil
+		}
+		t.zv = zng.NewTypeType(typ)
+	}
+	return t.zv, nil
+}
+
+type Exists struct {
+	zctx  *resolver.Context
+	exprs []Evaluator
+}
+
+func NewExists(zctx *resolver.Context, exprs []Evaluator) *Exists {
+	return &Exists{
+		zctx:  zctx,
+		exprs: exprs,
+	}
+}
+
+func (e *Exists) Eval(rec *zng.Record) (zng.Value, error) {
+	for _, expr := range e.exprs {
+		zv, err := expr.Eval(rec)
+		if err != nil || zv.Type == zng.TypeError {
+			return zng.False, nil
+		}
+	}
+	return zng.True, nil
+}
+
+func NewCast(expr Evaluator, typ zng.Type) (Evaluator, error) {
 	// XXX should handle alias casts... need type context.
 	// compile is going to need a local type context to create literals
 	// of complex types?
-	typ := zng.LookupPrimitive(styp)
 	c := LookupPrimitiveCaster(typ)
 	if c == nil {
 		// XXX See issue #1572.   To implement aliascast here.
-		return nil, fmt.Errorf("cast to %s not implemented", styp)
+		return nil, fmt.Errorf("cast to '%s' not implemented", typ.ZSON())
 	}
-	return &evalCast{expr, c}, nil
+	return &evalCast{expr, c, typ}, nil
 }
 
 type evalCast struct {
 	expr   Evaluator
 	caster PrimitiveCaster
+	typ    zng.Type
 }
 
 func (c *evalCast) Eval(rec *zng.Record) (zng.Value, error) {
@@ -731,14 +794,17 @@ func (c *evalCast) Eval(rec *zng.Record) (zng.Value, error) {
 	if err != nil {
 		return zng.Value{}, err
 	}
+	if zv.Bytes == nil {
+		// Take care of null here so the casters don't have to
+		// worry about it.  Any value can be null after all.
+		return zng.Value{c.typ, nil}, nil
+	}
 	return c.caster(zv)
 }
 
 func NewRootField(name string) Evaluator {
 	return NewDotExpr(field.New(name))
 }
-
-var ErrInference = errors.New("assigment name could not be inferred from rhs expression")
 
 type Assignment struct {
 	LHS field.Static

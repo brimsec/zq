@@ -39,6 +39,11 @@ func New(parent charm.Command, f *flag.FlagSet) (charm.Command, error) {
 }
 
 func (c *Command) Run(args []string) error {
+	defer c.Cleanup()
+	if err := c.Init(); err != nil {
+		return err
+	}
+
 	lk, err := lake.OpenLake(c.root, nil)
 	if err != nil {
 		return err

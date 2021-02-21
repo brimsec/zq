@@ -1,0 +1,22 @@
+tag: services
+
+script: |
+  exec 2>&1
+  source temporal.sh
+  zapi -h $ZQD_HOST new -k archivestore test >/dev/null
+  zapi -h $ZQD_HOST -s test post babble.tzng >/dev/null
+  zapi -h $ZQD_HOST -s test post babble.tzng >/dev/null
+  # Give the Temporal workflow a chance to run.
+  sleep 1
+  zar ls -R data/sp_* -ranges
+
+inputs:
+  - name: babble.tzng
+    source: ../../../../ztests/suite/data/babble.tzng
+  - name: temporal.sh
+
+outputs:
+  - name: stdout
+    data: |
+      [1587518620062237300-1587513611063914690]
+      [1587513592062544400-1587508830068523240]

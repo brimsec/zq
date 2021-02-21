@@ -12,13 +12,13 @@ in progress. In the meantime, here's a few tips to get started with.
 In the Zeek `ntp` log, the field `ref_id` is of Zeek's `string` type, but is often populated with a value that happens to be an IP address. When treated as a string, the attempted CIDR match in the following ZQL would be unsuccessful and no events would be counted.
 
 ```
-zq -f table 'ref_id =~ 83.162.0.0/16 | count()' ntp.log.gz
+zq -f table 'ref_id in 83.162.0.0/16 | count()' ntp.log.gz
 ```
 
 However, if we cast it to an `ip` type, now the CIDR match is successful. The `bad cast` warning on stderr tells us that some of the values for `ref_id` could _not_ be successfully cast to `ip`.
 
 ```zq-command
-zq -f table 'put ref_id=ref_id:ip | filter ref_id =~ 83.162.0.0/16 | count()' ntp.log.gz
+zq -f table 'put ref_id=ref_id:ip | filter ref_id in 83.162.0.0/16 | count()' ntp.log.gz
 ```
 
 #### Output:

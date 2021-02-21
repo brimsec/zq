@@ -118,7 +118,7 @@ func handleSearch(c *Core, w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", out.ContentType())
-	if err := srch.Run(r.Context(), store, out); err != nil {
+	if err := srch.Run(r.Context(), store, out, 0, c.conf.Worker); err != nil {
 		c.requestLogger(r).Warn("Error writing response", zap.Error(err))
 	}
 }
@@ -281,7 +281,7 @@ func handlePcapPost(c *Core, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	op, err := ingest.NewPcapOp(ctx, store, pcapstore, req.Path, c.suricata, c.zeek)
+	op, err := ingest.NewPcapOp(ctx, store, pcapstore, req.Path, c.conf.Suricata, c.conf.Zeek)
 	if err != nil {
 		respondError(c, w, r, err)
 		return

@@ -72,7 +72,7 @@ func (p *Proc) Pull() (zbuf.Batch, error) {
 			// If the left key isn't present (which is not a thing
 			// in a sql join), then drop the record and return only
 			// left records that can eval the key expression.
-			if err == expr.ErrNoSuchField {
+			if err == zng.ErrMissing {
 				continue
 			}
 			return nil, err
@@ -114,6 +114,14 @@ func (p *Proc) Done() {
 	p.cancel()
 }
 
+func (p *Proc) setJoinKey(key zng.Value) {
+	// Copy the joinkey value into the joinKeBytes buffer since
+	// we want to stash it and the zcode.Bytes points to a record
+	// that otherwise could be freed.
+	p.joinKey.Type = key.Type
+	p.joinKey.Bytes = append(p.joinKey.Bytes[:0], key.Bytes...)
+}
+
 func (p *Proc) getJoinSet(leftKey zng.Value) ([]*zng.Record, error) {
 	if leftKey.Equal(p.joinKey) {
 		return p.joinSet, nil
@@ -125,15 +133,15 @@ func (p *Proc) getJoinSet(leftKey zng.Value) ([]*zng.Record, error) {
 		}
 		rightKey, err := p.getRightKey.Eval(rec)
 		if err != nil {
-			if err == expr.ErrNoSuchField {
+			if err == zng.ErrMissing {
 				p.right.Read()
 				continue
 			}
 			return nil, err
 		}
 		if leftKey.Equal(rightKey) {
-			p.joinKey = leftKey
-			p.joinSet, err = p.readJoinSet(leftKey)
+			p.setJoinKey(leftKey)
+			p.joinSet, err = p.readJoinSet(p.joinKey)
 			return p.joinSet, err
 		}
 		if p.compare(leftKey, rightKey) < 0 {
@@ -151,8 +159,7 @@ func (p *Proc) getJoinSet(leftKey zng.Value) ([]*zng.Record, error) {
 
 // fillJoinSet is called when a join key has been found that matches
 // the current lefthand key.  It returns the all the subsequent records
-// from the righthand stream that match this key and sets the current joinKey
-// to the matched key.
+// from the righthand stream that match this key.
 func (p *Proc) readJoinSet(joinKey zng.Value) ([]*zng.Record, error) {
 	var recs []*zng.Record
 	for {
@@ -165,7 +172,7 @@ func (p *Proc) readJoinSet(joinKey zng.Value) ([]*zng.Record, error) {
 		}
 		key, err := p.getRightKey.Eval(rec)
 		if err != nil {
-			if err == expr.ErrNoSuchField {
+			if err == zng.ErrMissing {
 				p.right.Read()
 				continue
 			}
@@ -174,7 +181,7 @@ func (p *Proc) readJoinSet(joinKey zng.Value) ([]*zng.Record, error) {
 		if !key.Equal(joinKey) {
 			return recs, nil
 		}
-		recs = append(recs, rec)
+		recs = append(recs, rec.Keep())
 		p.right.Read()
 	}
 }

@@ -14,9 +14,10 @@ import (
 	"time"
 
 	"github.com/brimsec/zq/api"
-	"github.com/brimsec/zq/ast"
+	"github.com/brimsec/zq/compiler/ast"
 	"github.com/brimsec/zq/pcap/pcapio"
 	"github.com/brimsec/zq/zio/ndjsonio"
+	"github.com/brimsec/zq/zqe"
 	"github.com/go-resty/resty/v2"
 )
 
@@ -163,6 +164,18 @@ func (c *Connection) Version(ctx context.Context) (string, error) {
 	return resp.Result().(*api.VersionResponse).Version, nil
 }
 
+// ZtoAST sends a request to the server to translate a Z program into its
+// AST form.
+func (c *Connection) ZtoAST(ctx context.Context, zprog string) ([]byte, error) {
+	resp, err := c.Request(ctx).
+		SetBody(api.ASTRequest{ZQL: zprog}).
+		Post("/ast")
+	if err != nil {
+		return nil, err
+	}
+	return resp.Body(), nil
+}
+
 // SpaceInfo retrieves information about the specified space.
 func (c *Connection) SpaceInfo(ctx context.Context, id api.SpaceID) (*api.SpaceInfo, error) {
 	path := path.Join("/space", url.PathEscape(string(id)))
@@ -205,6 +218,19 @@ func (c *Connection) SpaceList(ctx context.Context) ([]api.Space, error) {
 		SetResult(&res).
 		Get("/space")
 	return res, err
+}
+
+func (c *Connection) SpaceLookup(ctx context.Context, name string) (api.SpaceID, error) {
+	spaces, err := c.SpaceList(ctx)
+	if err != nil {
+		return "", err
+	}
+	for _, s := range spaces {
+		if s.Name == name {
+			return s.ID, nil
+		}
+	}
+	return "", zqe.ErrNotFound()
 }
 
 func (c *Connection) SpaceDelete(ctx context.Context, id api.SpaceID) (err error) {
@@ -253,10 +279,35 @@ func (c *Connection) WorkerRelease(ctx context.Context) error {
 	return err
 }
 
-// Search sends a search task to the server and returns a Search interface
+// Search sends a search request to the server and returns a ZngSearch
 // that the caller uses to stream back results via the Read method.
-func (c *Connection) Search(ctx context.Context, search api.SearchRequest, params map[string]string) (*ZngSearch, error) {
-	r, err := c.SearchRaw(ctx, search, params)
+// Example usage:
+//
+//	conn := client.NewConnectionTo("http://localhost:9867")
+//	spaceID, err := conn.SpaceLookup(ctx, "spaceName")
+//	if err != nil { return err }
+//	search, err := conn.Search(ctx, spaceID, "_path=conn | count()")
+//	if err != nil { return err }
+//	for {
+//		rec, err := search.Read()
+//		if err != nil { return err }
+//		if rec == nil {
+//			// End of results.
+//			return nil
+//		}
+//		fmt.Println(rec)
+//	}
+//
+func (c *Connection) Search(ctx context.Context, spaceID api.SpaceID, query string) (*ZngSearch, error) {
+	procBytes, err := c.ZtoAST(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	r, err := c.SearchRaw(ctx, api.SearchRequest{
+		Space: spaceID,
+		Proc:  procBytes,
+		Dir:   -1,
+	}, nil)
 	if err != nil {
 		return nil, err
 	}

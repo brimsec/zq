@@ -144,7 +144,7 @@ func (tm *testMigration) manager() *apiserver.Manager {
 	if tm.mgr == nil {
 		filedb, err := filedb.Open(context.Background(), zap.NewNop(), tm.root)
 		require.NoError(tm.T, err)
-		mgr, err := apiserver.NewManager(context.Background(), zap.NewNop(), prometheus.NewRegistry(), tm.root, filedb, nil)
+		mgr, err := apiserver.NewManager(context.Background(), zap.NewNop(), nil, prometheus.NewRegistry(), tm.root, filedb, nil)
 		require.NoError(tm.T, err)
 		tm.mgr = mgr
 	}

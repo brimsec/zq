@@ -18,11 +18,13 @@ import (
 	"github.com/brimsec/zq/ppl/zqd/db"
 	"github.com/brimsec/zq/ppl/zqd/pcapanalyzer"
 	"github.com/brimsec/zq/ppl/zqd/recruiter"
+	"github.com/brimsec/zq/ppl/zqd/temporal"
 	"github.com/brimsec/zq/ppl/zqd/worker"
-	"github.com/go-redis/redis/v8"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.temporal.io/sdk/client"
+	sdkworker "go.temporal.io/sdk/worker"
 	"go.uber.org/zap"
 )
 
@@ -46,6 +48,7 @@ type Config struct {
 	Personality    string
 	Redis          RedisConfig
 	Root           string
+	Temporal       temporal.Config
 	Version        string
 	Worker         worker.WorkerConfig
 
@@ -54,26 +57,26 @@ type Config struct {
 }
 
 type Core struct {
-	auth       *Auth0Authenticator
-	db         db.DB
-	redis      *redis.Client
-	logger     *zap.Logger
-	mgr        *apiserver.Manager
-	registry   *prometheus.Registry
-	root       iosrc.URI
-	router     *mux.Router
-	taskCount  int64
-	workerPool *recruiter.WorkerPool     // state for personality=recruiter
-	workerReg  *worker.RegistrationState // state for personality=worker
-	worker     worker.WorkerConfig       // config for personality=worker
-
-	suricata pcapanalyzer.Launcher
-	zeek     pcapanalyzer.Launcher
+	auth           *Auth0Authenticator
+	conf           Config
+	logger         *zap.Logger
+	mgr            *apiserver.Manager
+	registry       *prometheus.Registry
+	root           iosrc.URI
+	router         *mux.Router
+	taskCount      int64
+	temporalClient client.Client
+	temporalWorker sdkworker.Worker
+	workerPool     *recruiter.WorkerPool     // state for personality=recruiter
+	workerReg      *worker.RegistrationState // state for personality=worker
 }
 
 func NewCore(ctx context.Context, conf Config) (*Core, error) {
 	if conf.Logger == nil {
 		conf.Logger = zap.NewNop()
+	}
+	if conf.Personality == "" {
+		conf.Personality = "all"
 	}
 	if conf.Version == "" {
 		conf.Version = "unknown"
@@ -97,11 +100,14 @@ func NewCore(ctx context.Context, conf Config) (*Core, error) {
 	router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, indexPage)
 	})
-	router.HandleFunc("/debug/pprof/", pprof.Index)
-	router.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-	router.HandleFunc("/debug/pprof/profile", pprof.Profile)
-	router.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-	router.HandleFunc("/debug/pprof/trace", pprof.Trace)
+
+	debug := router.PathPrefix("/debug/pprof").Subrouter()
+	debug.HandleFunc("/cmdline", pprof.Cmdline)
+	debug.HandleFunc("/profile", pprof.Profile)
+	debug.HandleFunc("/symbol", pprof.Symbol)
+	debug.HandleFunc("/trace", pprof.Trace)
+	debug.PathPrefix("/").HandlerFunc(pprof.Index)
+
 	router.Handle("/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
 	router.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, "ok")
@@ -111,28 +117,35 @@ func NewCore(ctx context.Context, conf Config) (*Core, error) {
 		json.NewEncoder(w).Encode(&api.VersionResponse{Version: conf.Version})
 	})
 
-	personality := conf.Personality
-	if personality == "" {
-		personality = "all"
-	}
-
 	c := &Core{
 		auth:     authenticator,
-		logger:   conf.Logger.Named("core").With(zap.String("personality", personality)),
+		conf:     conf,
+		logger:   conf.Logger.Named("core").With(zap.String("personality", conf.Personality)),
 		registry: registry,
 		router:   router,
-		suricata: conf.Suricata,
-		worker:   conf.Worker,
-		zeek:     conf.Zeek,
 	}
 
-	var startFields []zap.Field
-	switch personality {
-	case "all", "apiserver", "root":
-		if err := c.addAPIServerRoutes(ctx, conf); err != nil {
+	switch conf.Personality {
+	case "all", "apiserver", "root", "temporal":
+		if err := c.initManager(ctx); err != nil {
+			c.Shutdown()
 			return nil, err
 		}
-		if personality == "all" || personality == "root" {
+	}
+	if conf.Temporal.Enabled {
+		switch conf.Personality {
+		case "all", "temporal":
+			if err := c.startTemporalWorker(); err != nil {
+				c.Shutdown()
+				return nil, err
+			}
+		}
+	}
+	var startFields []zap.Field
+	switch conf.Personality {
+	case "all", "apiserver", "root":
+		c.addAPIServerRoutes()
+		if conf.Personality == "all" || conf.Personality == "root" {
 			c.addWorkerRoutes()
 		}
 		startFields = []zap.Field{
@@ -145,6 +158,7 @@ func NewCore(ctx context.Context, conf Config) (*Core, error) {
 	case "worker":
 		c.addWorkerRoutes()
 	default:
+		c.Shutdown()
 		return nil, fmt.Errorf("unknown personality %s", conf.Personality)
 	}
 
@@ -152,26 +166,7 @@ func NewCore(ctx context.Context, conf Config) (*Core, error) {
 	return c, nil
 }
 
-func (c *Core) addAPIServerRoutes(ctx context.Context, conf Config) (err error) {
-	c.root, err = iosrc.ParseURI(conf.Root)
-	if err != nil {
-		return err
-	}
-	c.db, err = db.Open(ctx, conf.Logger, conf.DB, c.root)
-	if err != nil {
-		return err
-	}
-	c.redis, err = NewRedisClient(ctx, conf.Logger, conf.Redis)
-	if err != nil {
-		return err
-	}
-	icache, err := immcache.New(conf.ImmutableCache, c.redis, c.registry)
-	if err != nil {
-		return err
-	}
-	if c.mgr, err = apiserver.NewManager(ctx, conf.Logger, c.registry, c.root, c.db, icache); err != nil {
-		return err
-	}
+func (c *Core) addAPIServerRoutes() {
 	c.authhandle("/ast", handleASTPost).Methods("POST")
 	c.authhandle("/auth/identity", handleAuthIdentityGet).Methods("GET")
 	// /auth/method intentionally requires no authentication
@@ -189,7 +184,6 @@ func (c *Core) addAPIServerRoutes(ctx context.Context, conf Config) (err error) 
 	c.authhandle("/space/{space}/log/paths", handleLogPost).Methods("POST")
 	c.authhandle("/space/{space}/pcap", handlePcapPost).Methods("POST")
 	c.authhandle("/space/{space}/pcap", handlePcapSearch).Methods("GET")
-	return nil
 }
 
 func (c *Core) addRecruiterRoutes() {
@@ -203,6 +197,45 @@ func (c *Core) addWorkerRoutes() {
 	c.router.Handle("/worker/chunksearch", c.handler(handleWorkerChunkSearch)).Methods("POST")
 	c.router.Handle("/worker/release", c.handler(handleWorkerRelease)).Methods("GET")
 	c.router.Handle("/worker/rootsearch", c.handler(handleWorkerRootSearch)).Methods("POST")
+}
+
+func (c *Core) initManager(ctx context.Context) (err error) {
+	c.root, err = iosrc.ParseURI(c.conf.Root)
+	if err != nil {
+		return err
+	}
+	db, err := db.Open(ctx, c.conf.Logger, c.conf.DB, c.root)
+	if err != nil {
+		return err
+	}
+	rclient, err := NewRedisClient(ctx, c.conf.Logger, c.conf.Redis)
+	if err != nil {
+		return err
+	}
+	icache, err := immcache.New(c.conf.ImmutableCache, rclient, c.registry)
+	if err != nil {
+		return err
+	}
+	var notifier apiserver.Notifier
+	if c.conf.Temporal.Enabled {
+		notifier, err = temporal.NewNotifier(c.conf.Logger, c.conf.Temporal)
+		if err != nil {
+			return err
+		}
+	}
+	c.mgr, err = apiserver.NewManager(ctx, c.conf.Logger, notifier, c.registry, c.root, db, icache)
+	return err
+}
+
+func (c *Core) startTemporalWorker() error {
+	var err error
+	c.temporalClient, err = temporal.NewClient(c.conf.Logger.Named("temporal"), c.conf.Temporal)
+	if err != nil {
+		return err
+	}
+	c.temporalWorker = sdkworker.New(c.temporalClient, temporal.TaskQueue, sdkworker.Options{})
+	temporal.InitSpaceWorkflow(c.conf.Temporal, c.mgr, c.temporalWorker)
+	return c.temporalWorker.Start()
 }
 
 func (c *Core) handler(f func(*Core, http.ResponseWriter, *http.Request)) http.Handler {
@@ -226,11 +259,11 @@ func (c *Core) HTTPHandler() http.Handler {
 }
 
 func (c *Core) HasSuricata() bool {
-	return c.suricata != nil
+	return c.conf.Suricata != nil
 }
 
 func (c *Core) HasZeek() bool {
-	return c.zeek != nil
+	return c.conf.Zeek != nil
 }
 
 func (c *Core) Registry() *prometheus.Registry {
@@ -242,6 +275,12 @@ func (c *Core) Root() iosrc.URI {
 }
 
 func (c *Core) Shutdown() {
+	if c.temporalWorker != nil {
+		c.temporalWorker.Stop()
+	}
+	if c.temporalClient != nil {
+		c.temporalClient.Close()
+	}
 	if c.mgr != nil {
 		c.mgr.Shutdown()
 	}

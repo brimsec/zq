@@ -78,6 +78,7 @@ Create args that vary based on .Values.personality
 {{- $args = append $args (print "-db.postgres.database=" .Values.postgres.database) }}
 {{- $args = append $args (print "-db.postgres.user=" .Values.postgres.username) }}
 {{- $args = append $args (print "-db.postgres.passwordFile=/creds/postgres/password") }}
+{{- $args = append $args (print "-immcache.kind=redis") }}
 {{- $args = append $args (print "-redis.enabled") }}
 {{- $args = append $args (print "-redis.addr=" .Values.redis.addr) }}
 {{- $args = append $args (print "-redis.passwordFile=/creds/redis/password") }}

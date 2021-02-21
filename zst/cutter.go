@@ -72,7 +72,7 @@ func NewCutAssembler(zctx *resolver.Context, fields []string, object *Object) (*
 			return nil, err
 		}
 		_, ca.columns[k], err = topcol.Lookup(schema, fields)
-		if err == zng.ErrNoSuchField || err == column.ErrNonRecordAccess {
+		if err == zng.ErrMissing || err == column.ErrNonRecordAccess {
 			continue
 		}
 		if err != nil {
@@ -85,7 +85,7 @@ func NewCutAssembler(zctx *resolver.Context, fields []string, object *Object) (*
 		cnt++
 	}
 	if cnt == 0 {
-		return nil, zng.ErrNoSuchField
+		return nil, zng.ErrMissing
 	}
 	return ca, nil
 }
@@ -96,7 +96,7 @@ func cutType(zctx *resolver.Context, typ *zng.TypeRecord, fields []string) (*zng
 	}
 	k, ok := typ.ColumnOfField(fields[0])
 	if !ok {
-		return nil, 0, zng.ErrNoSuchField
+		return nil, 0, zng.ErrMissing
 	}
 	if len(fields) == 1 {
 		col := []zng.Column{typ.Columns[k]}

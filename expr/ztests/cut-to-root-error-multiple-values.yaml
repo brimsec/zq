@@ -1,0 +1,7 @@
+zql: 'cut .=a,x=b'
+
+input: |
+  #0:record[a:int32,b:int32]
+  0:[1;2;]
+
+errorRE: cannot assign to \. when cutting multiple values

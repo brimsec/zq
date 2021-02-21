@@ -6,8 +6,10 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/brimsec/zq/ast"
 	"github.com/brimsec/zq/compiler"
+	// XXX replace this with flow DSL
+	"github.com/brimsec/zq/compiler/ast"
+	"github.com/brimsec/zq/compiler/kernel"
 	"github.com/brimsec/zq/field"
 	"github.com/brimsec/zq/pkg/nano"
 	"github.com/brimsec/zq/ppl/zqd/worker"
@@ -19,7 +21,7 @@ import (
 
 // XXX ReaderSortKey should be a field.Static.  Issue #1467.
 type Config struct {
-	Custom            compiler.Hook
+	Custom            kernel.Hook
 	Logger            *zap.Logger
 	ReaderSortKey     string
 	ReaderSortReverse bool
@@ -82,7 +84,7 @@ func compile(ctx context.Context, program ast.Proc, zctx *resolver.Context, read
 }
 
 type MultiConfig struct {
-	Custom      compiler.Hook
+	Custom      kernel.Hook
 	Distributed bool // true if remote request specified worker count
 	Order       zbuf.Order
 	Logger      *zap.Logger

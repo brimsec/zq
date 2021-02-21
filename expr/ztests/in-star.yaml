@@ -1,0 +1,12 @@
+zql: 2 in *
+
+input: |
+  #0:record[a:array[uint32]]
+  0:[[1;2;]]
+  0:[[1;]]
+  0:[[2;3;]]
+
+output: |
+  #0:record[a:array[uint32]]
+  0:[[1;2;]]
+  0:[[2;3;]]

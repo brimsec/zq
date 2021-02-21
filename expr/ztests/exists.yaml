@@ -1,0 +1,12 @@
+zql: cut r=exists(r),rb=exists(r.b),div0=exists(s/0),s=exists(s),both=exists(r,r.b)
+
+input: |
+  #0:record[r:record[a:int32],s:int32]
+  0:[[1;]123;]
+  #1:record[r:record[a:int8,b:int8],s:string]
+  1:[[1;2;]a;]
+
+output: |
+  #0:record[r:bool,rb:bool,div0:bool,s:bool,both:bool]
+  0:[T;F;F;T;F;]
+  0:[T;T;F;T;T;]

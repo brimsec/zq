@@ -1,0 +1,7 @@
+zql: 'put .=a'
+
+input: |
+  #0:record[a:int32]
+  0:[1;]
+  
+errorRE: cannot put a non-record to \.

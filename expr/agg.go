@@ -15,10 +15,10 @@ var (
 type Aggregator struct {
 	pattern agg.Pattern
 	expr    Evaluator
-	where   Evaluator
+	where   Filter
 }
 
-func NewAggregator(op string, expr, where Evaluator) (*Aggregator, error) {
+func NewAggregator(op string, expr Evaluator, where Filter) (*Aggregator, error) {
 	pattern, err := agg.NewPattern(op)
 	if err != nil {
 		return nil, err
@@ -45,7 +45,7 @@ func (a *Aggregator) Apply(f agg.Function, rec *zng.Record) error {
 	}
 	zv, err := a.expr.Eval(rec)
 	if err != nil {
-		if err == ErrNoSuchField {
+		if err == zng.ErrMissing {
 			err = nil
 		}
 		return err
@@ -57,9 +57,5 @@ func (a *Aggregator) filter(rec *zng.Record) bool {
 	if a.where == nil {
 		return false
 	}
-	zv, err := a.where.Eval(rec)
-	if err != nil {
-		return true
-	}
-	return !zng.IsTrue(zv.Bytes)
+	return !a.where(rec)
 }

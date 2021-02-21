@@ -1,0 +1,12 @@
+zql: '* | bar'
+
+input: |
+  #0:record[s1:string,s2:string]
+  0:[foo;bar;]
+  0:[foo;-;]
+  0:[-;bar;]
+
+output: |
+  #0:record[s1:string,s2:string]
+  0:[foo;bar;]
+  0:[-;bar;]

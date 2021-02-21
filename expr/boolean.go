@@ -8,9 +8,10 @@ import (
 	"regexp"
 	"regexp/syntax"
 
-	"github.com/brimsec/zq/ast"
+	//XXX this shouldn't be reaching into the AST but we'll leave it for
+	// now until we factor-in the flow-based package
+	"github.com/brimsec/zq/compiler/ast"
 	"github.com/brimsec/zq/pkg/byteconv"
-	"github.com/brimsec/zq/reglob"
 	"github.com/brimsec/zq/zng"
 )
 
@@ -27,8 +28,6 @@ type Boolean func(zng.Value) bool
 var compareBool = map[string]func(bool, bool) bool{
 	"=":  func(a, b bool) bool { return a == b },
 	"!=": func(a, b bool) bool { return a != b },
-	"=~": func(a, b bool) bool { return false },
-	"!~": func(a, b bool) bool { return false },
 	">":  func(a, b bool) bool { return a && !b },
 	">=": func(a, b bool) bool { return a || !b },
 	"<":  func(a, b bool) bool { return !a && b },
@@ -58,8 +57,6 @@ func CompareBool(op string, pattern bool) (Boolean, error) {
 var compareInt = map[string]func(int64, int64) bool{
 	"=":  func(a, b int64) bool { return a == b },
 	"!=": func(a, b int64) bool { return a != b },
-	"=~": func(a, b int64) bool { return false },
-	"!~": func(a, b int64) bool { return false },
 	">":  func(a, b int64) bool { return a > b },
 	">=": func(a, b int64) bool { return a >= b },
 	"<":  func(a, b int64) bool { return a < b },
@@ -68,8 +65,6 @@ var compareInt = map[string]func(int64, int64) bool{
 var compareFloat = map[string]func(float64, float64) bool{
 	"=":  func(a, b float64) bool { return a == b },
 	"!=": func(a, b float64) bool { return a != b },
-	"=~": func(a, b float64) bool { return false },
-	"!~": func(a, b float64) bool { return false },
 	">":  func(a, b float64) bool { return a > b },
 	">=": func(a, b float64) bool { return a >= b },
 	"<":  func(a, b float64) bool { return a < b },
@@ -137,8 +132,6 @@ func CompareContainerLen(op string, len int64) (Boolean, error) {
 var compareAddr = map[string]func(net.IP, net.IP) bool{
 	"=":  func(a, b net.IP) bool { return a.Equal(b) },
 	"!=": func(a, b net.IP) bool { return !a.Equal(b) },
-	"=~": func(a, b net.IP) bool { return false },
-	"!~": func(a, b net.IP) bool { return false },
 	">":  func(a, b net.IP) bool { return bytes.Compare(a, b) > 0 },
 	">=": func(a, b net.IP) bool { return bytes.Compare(a, b) >= 0 },
 	"<":  func(a, b net.IP) bool { return bytes.Compare(a, b) < 0 },
@@ -216,8 +209,6 @@ func CompareFloat64(op string, pattern float64) (Boolean, error) {
 var compareString = map[string]func(string, string) bool{
 	"=":  func(a, b string) bool { return a == b },
 	"!=": func(a, b string) bool { return a != b },
-	"=~": func(a, b string) bool { return false },
-	"!~": func(a, b string) bool { return false },
 	">":  func(a, b string) bool { return a > b },
 	">=": func(a, b string) bool { return a >= b },
 	"<":  func(a, b string) bool { return a < b },
@@ -251,7 +242,7 @@ func compareRegexp(op, pattern string) (Boolean, error) {
 		return nil, err
 	}
 	switch op {
-	case "=~":
+	case "=":
 		return func(v zng.Value) bool {
 			switch v.Type.ID() {
 			case zng.IdString, zng.IdBstring:
@@ -259,7 +250,7 @@ func compareRegexp(op, pattern string) (Boolean, error) {
 			}
 			return false
 		}, nil
-	case "!~":
+	case "!=":
 		return func(v zng.Value) bool {
 			switch v.Type.ID() {
 			case zng.IdString, zng.IdBstring:
@@ -293,8 +284,6 @@ func CompareUnset(op string) (Boolean, error) {
 var compareSubnet = map[string]func(*net.IPNet, *net.IPNet) bool{
 	"=":  func(a, b *net.IPNet) bool { return bytes.Equal(a.IP, b.IP) },
 	"!=": func(a, b *net.IPNet) bool { return bytes.Equal(a.IP, b.IP) },
-	"=~": func(a, b *net.IPNet) bool { return false },
-	"!~": func(a, b *net.IPNet) bool { return false },
 	"<":  func(a, b *net.IPNet) bool { return bytes.Compare(a.IP, b.IP) < 0 },
 	"<=": func(a, b *net.IPNet) bool { return bytes.Compare(a.IP, b.IP) <= 0 },
 	">":  func(a, b *net.IPNet) bool { return bytes.Compare(a.IP, b.IP) > 0 },
@@ -302,12 +291,11 @@ var compareSubnet = map[string]func(*net.IPNet, *net.IPNet) bool{
 }
 
 var matchSubnet = map[string]func(net.IP, *net.IPNet) bool{
-	"=":  func(a net.IP, b *net.IPNet) bool { return false },
-	"!=": func(a net.IP, b *net.IPNet) bool { return false },
-	"=~": func(a net.IP, b *net.IPNet) bool {
-		return b.IP.Equal(a.Mask(b.Mask))
+	"=": func(a net.IP, b *net.IPNet) bool {
+		ok := b.IP.Equal(a.Mask(b.Mask))
+		return ok
 	},
-	"!~": func(a net.IP, b *net.IPNet) bool {
+	"!=": func(a net.IP, b *net.IPNet) bool {
 		return !b.IP.Equal(a.Mask(b.Mask))
 	},
 	"<": func(a net.IP, b *net.IPNet) bool {
@@ -385,18 +373,14 @@ func Contains(compare Boolean) Boolean {
 }
 
 // Comparison returns a Predicate for comparing this value to other values.
-// The op argument is one of "=", "!=", "=~", "!~", "<", "<=", ">", ">=".
+// The op argument is one of "=", "!=", "<", "<=", ">", ">=".
 // See the comments of the various type implementations
 // of this method as some types limit the operand to equality and
 // the various types handle coercion in different ways.
 func Comparison(op string, literal ast.Literal) (Boolean, error) {
 	if literal.Type == "regexp" {
 		return compareRegexp(op, literal.Value)
-	} else if (op == "=~" || op == "!~") && literal.Type == "string" {
-		pattern := reglob.Reglob(literal.Value)
-		return compareRegexp(op, pattern)
 	}
-
 	v, err := zng.ParseLiteral(literal)
 	if err != nil {
 		return nil, err

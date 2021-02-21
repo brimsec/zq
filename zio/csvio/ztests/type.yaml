@@ -3,19 +3,9 @@ zql: '*'
 input: |
   #0:record[type:type]
   0:[-;]
-  0:[;]
-  0:[";]
-  0:[,;]
-  0:[-;]
-  0:[\x5c;]
 
 output-flags: -f csv
 
-output: |
+output: |+
   type
-  
-  
-  """"
-  ","
-  
-  \x5c
+

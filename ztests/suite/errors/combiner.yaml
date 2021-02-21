@@ -1,5 +1,5 @@
 script: |
-  zq -j types.json "*" *.ndjson > http.tzng
+  zq -i ndjson -j types.json "*" *.ndjson > http.tzng
 
 inputs:
   - name: http.ndjson
@@ -34,4 +34,4 @@ inputs:
 
 outputs:
   - name: stderr
-    regexp: badpath.ndjson.*
+    regexp: .*descriptor not found.*

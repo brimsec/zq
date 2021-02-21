@@ -1,18 +1,19 @@
 zql: |
    put
    // cast to type with same field order
-   id=cast(id, "({orig_h:ip,orig_p:port=(uint16),resp_h:ip,resp_p:port})"),
+   id=cast(id, {orig_h:ip,orig_p:port=(uint16),resp_h:ip,resp_p:port}),
    // cast to type with different field order, does not change output order
-   id2=cast(id, "({resp_h:ip,resp_p:port=(uint16),orig_h:ip,orig_p:port})")
+   id2=cast(id, {resp_h:ip,resp_p:port=(uint16),orig_h:ip,orig_p:port})
 
 
 input: |
    #port=uint16
    #0:record[id:record[orig_h:ip,orig_p:port,resp_p:port,resp_h:string],other:float64]
    0:[[ff02::fb;5353;5353;1.2.3.4;]123;]
+   0:[[ff02::fb;5353;5353;notanip;]123;]
 
 output: |
    #port=uint16
    #0:record[id:record[orig_h:ip,orig_p:port,resp_p:port,resp_h:ip],other:float64,id2:record[orig_h:ip,orig_p:port,resp_p:port,resp_h:ip]]
    0:[[ff02::fb;5353;5353;1.2.3.4;]123;[ff02::fb;5353;5353;1.2.3.4;]]
-
+   0:[[ff02::fb;5353;5353;-;]123;[ff02::fb;5353;5353;-;]]

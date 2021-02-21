@@ -16,10 +16,36 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go/service/s3/s3iface"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 )
 
 var ErrInvalidS3Path = errors.New("path is not a valid s3 location")
+
+func NewClient(cfg *aws.Config) *s3.S3 {
+	if cfg == nil {
+		cfg = &aws.Config{}
+	}
+	// Add ability to override s3 endpoint via env variable (the aws sdk doesn't
+	// support this). This is mostly for system tests w/ minio.
+	if endpoint := os.Getenv("AWS_S3_ENDPOINT"); cfg.Endpoint == nil && endpoint != "" {
+		cfg.Endpoint = aws.String(endpoint)
+		cfg.S3ForcePathStyle = aws.Bool(true) // https://github.com/minio/minio/tree/master/docs/config#domain
+	}
+
+	// Unless the user has a environment setting for shared config, enable it
+	// so that region & other info is automatically picked up from the
+	// .aws/config file.
+	scs := session.SharedConfigEnable
+	if os.Getenv("AWS_SDK_LOAD_CONFIG") != "" {
+		scs = session.SharedConfigStateFromEnv
+	}
+	sess := session.Must(session.NewSessionWithOptions(session.Options{
+		Config:            *cfg,
+		SharedConfigState: scs,
+	}))
+	return s3.New(sess)
+}
 
 // uploader is an interface wrapper for s3manager.Uploader. This is only here
 // for unit testing purposes.
@@ -57,12 +83,11 @@ type Writer struct {
 	err      error
 }
 
-func NewWriter(ctx context.Context, path string, cfg *aws.Config, options ...func(*s3manager.Uploader)) (*Writer, error) {
+func NewWriter(ctx context.Context, path string, client s3iface.S3API, options ...func(*s3manager.Uploader)) (*Writer, error) {
 	bucket, key, err := parsePath(path)
 	if err != nil {
 		return nil, err
 	}
-	client := newClient(cfg)
 	uploader := s3manager.NewUploaderWithClient(client, options...)
 	pr, pw := io.Pipe()
 	return &Writer{
@@ -107,12 +132,28 @@ func (w *Writer) Close() error {
 	return w.closeWithError(nil)
 }
 
-func RemoveAll(ctx context.Context, path string, cfg *aws.Config) error {
+func ReadFile(ctx context.Context, path string, client s3iface.S3API) ([]byte, error) {
+	bucket, key, err := parsePath(path)
+	if err != nil {
+		return nil, err
+	}
+	wbuf := aws.NewWriteAtBuffer(nil)
+	downloader := s3manager.NewDownloaderWithClient(client)
+	_, err = downloader.DownloadWithContext(ctx, wbuf, &s3.GetObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return wbuf.Bytes(), nil
+}
+
+func RemoveAll(ctx context.Context, path string, client s3iface.S3API) error {
 	bucket, key, err := parsePath(path)
 	if err != nil {
 		return err
 	}
-	client := newClient(cfg)
 	deleter := s3manager.NewBatchDeleteWithClient(client)
 	it := s3manager.NewDeleteListIterator(client, &s3.ListObjectsInput{
 		Bucket: aws.String(bucket),
@@ -130,15 +171,15 @@ func RemoveAll(ctx context.Context, path string, cfg *aws.Config) error {
 	return nil
 }
 
-func Remove(ctx context.Context, path string, cfg *aws.Config) error {
+func Remove(ctx context.Context, path string, client s3iface.S3API) error {
 	bucket, key, err := parsePath(path)
 	if err != nil {
 		return err
 	}
-	if _, err := head(ctx, bucket, key, cfg); err != nil {
+	if _, err := head(ctx, bucket, key, client); err != nil {
 		return err
 	}
-	_, err = newClient(cfg).DeleteObjectWithContext(ctx, &s3.DeleteObjectInput{
+	_, err = client.DeleteObjectWithContext(ctx, &s3.DeleteObjectInput{
 		Key:    &key,
 		Bucket: &bucket,
 	})
@@ -152,12 +193,12 @@ type Info struct {
 	IsDir   bool
 }
 
-func Stat(ctx context.Context, uri string, cfg *aws.Config) (Info, error) {
+func Stat(ctx context.Context, uri string, client s3iface.S3API) (Info, error) {
 	bucket, key, err := parsePath(uri)
 	if err != nil {
 		return Info{}, err
 	}
-	h, err := head(ctx, bucket, key, cfg)
+	h, err := head(ctx, bucket, key, client)
 	if err != nil {
 		return Info{}, err
 	}
@@ -169,14 +210,14 @@ func Stat(ctx context.Context, uri string, cfg *aws.Config) (Info, error) {
 	}, nil
 }
 
-func head(ctx context.Context, bucket, key string, cfg *aws.Config) (*s3.HeadObjectOutput, error) {
-	return newClient(cfg).HeadObjectWithContext(ctx, &s3.HeadObjectInput{
+func head(ctx context.Context, bucket, key string, client s3iface.S3API) (*s3.HeadObjectOutput, error) {
+	return client.HeadObjectWithContext(ctx, &s3.HeadObjectInput{
 		Bucket: aws.String(bucket),
 		Key:    aws.String(key),
 	})
 }
 
-func List(ctx context.Context, path string, cfg *aws.Config) ([]Info, error) {
+func List(ctx context.Context, path string, client s3iface.S3API) ([]Info, error) {
 	bucket, key, err := parsePath(path)
 	if err != nil {
 		return nil, err
@@ -184,7 +225,6 @@ func List(ctx context.Context, path string, cfg *aws.Config) ([]Info, error) {
 	if !strings.HasSuffix(key, "/") {
 		key += "/"
 	}
-	client := newClient(cfg)
 	input := &s3.ListObjectsV2Input{
 		Prefix:    aws.String(key),
 		Bucket:    aws.String(bucket),
@@ -211,8 +251,8 @@ func List(ctx context.Context, path string, cfg *aws.Config) ([]Info, error) {
 	return entries, err
 }
 
-func Exists(ctx context.Context, path string, cfg *aws.Config) (bool, error) {
-	_, err := Stat(ctx, path, cfg)
+func Exists(ctx context.Context, path string, client s3iface.S3API) (bool, error) {
+	_, err := Stat(ctx, path, client)
 	if err != nil {
 		var reqerr awserr.RequestFailure
 		if errors.As(err, &reqerr) && reqerr.StatusCode() == http.StatusNotFound {
@@ -221,31 +261,6 @@ func Exists(ctx context.Context, path string, cfg *aws.Config) (bool, error) {
 		return false, err
 	}
 	return true, nil
-}
-
-func newClient(cfg *aws.Config) *s3.S3 {
-	if cfg == nil {
-		cfg = &aws.Config{}
-	}
-	// Add ability to override s3 endpoint via env variable (the aws sdk doesn't
-	// support this). This is mostly for system tests w/ minio.
-	if endpoint := os.Getenv("AWS_S3_ENDPOINT"); cfg.Endpoint == nil && endpoint != "" {
-		cfg.Endpoint = aws.String(endpoint)
-		cfg.S3ForcePathStyle = aws.Bool(true) // https://github.com/minio/minio/tree/master/docs/config#domain
-	}
-
-	// Unless the user has a environment setting for shared config, enable it
-	// so that region & other info is automatically picked up from the
-	// .aws/config file.
-	scs := session.SharedConfigEnable
-	if os.Getenv("AWS_SDK_LOAD_CONFIG") != "" {
-		scs = session.SharedConfigStateFromEnv
-	}
-	sess := session.Must(session.NewSessionWithOptions(session.Options{
-		Config:            *cfg,
-		SharedConfigState: scs,
-	}))
-	return s3.New(sess)
 }
 
 type Replacer struct {
@@ -260,8 +275,8 @@ func (r *Replacer) Abort() {
 	_ = r.closeWithError(errors.New("replacer aborted"))
 }
 
-func NewReplacer(ctx context.Context, path string, cfg *aws.Config, options ...func(*s3manager.Uploader)) (*Replacer, error) {
-	wc, err := NewWriter(ctx, path, cfg, options...)
+func NewReplacer(ctx context.Context, path string, client s3iface.S3API, options ...func(*s3manager.Uploader)) (*Replacer, error) {
+	wc, err := NewWriter(ctx, path, client, options...)
 	if err != nil {
 		return nil, err
 	}

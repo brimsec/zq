@@ -11,6 +11,9 @@ inputs:
       1:[goodnight;gracie;]
 
 outputs:
+  - name: stderr
+    data: ""
+
   - name: stdout
     data: |
       #0:record[a:string,b:string,c:string]

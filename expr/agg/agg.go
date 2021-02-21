@@ -50,6 +50,10 @@ func NewPattern(op string) (Pattern, error) {
 		return func() Function {
 			return NewCountDistinct()
 		}, nil
+	case "fuse":
+		return func() Function {
+			return newFuse()
+		}, nil
 	case "sum":
 		return func() Function {
 			return newMathReducer(anymath.Add)

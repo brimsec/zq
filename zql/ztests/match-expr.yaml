@@ -1,0 +1,12 @@
+zql: 'c=a+b'
+
+input: |
+  #0:record[a:int32,b:int32,c:int32]
+  0:[1;2;3;]
+  0:[-1;2;1;]
+  0:[1;1;0;]
+
+output: |
+  #0:record[a:int32,b:int32,c:int32]
+  0:[1;2;3;]
+  0:[-1;2;1;]

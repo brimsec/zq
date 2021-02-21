@@ -89,6 +89,9 @@ func NewColumnBuilder(zctx *resolver.Context, fields []field.Static) (*ColumnBui
 	fieldInfos := make([]fieldInfo, 0, len(fields))
 	var currentRecord []string
 	for i, field := range fields {
+		if field.IsRoot() {
+			return nil, errors.New("root field")
+		}
 		names := field
 		// Grab everything except the leaf field name and see if
 		// it has changed from the previous field.  If it hasn't,

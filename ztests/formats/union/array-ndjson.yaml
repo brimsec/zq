@@ -6,19 +6,20 @@ input: |
   {"b":["bar", 100, 200]}
   {"b":["bar", null, 200]}
   {"c":["foo", [1, 2]]}
-  {"d":["foo", false, ["foo", 2], {"dd": ["foo", 2, bool]}]}
-  {"f":["foo", false, ["foo", 2], {"d.d": ["foo", 2, bool]}]}
+  {"d":["foo", false, ["foo", 2], {"dd": ["foo", 2, true]}]}
+  {"f":["foo", false, ["foo", 2], {"d.d": ["foo", 2, true]}]}
 
 output: |
-  #0:record[a:array[union[string,float64]]]
+  #0:record[a:array[union[string,int64]]]
   0:[[0:foo;1:1;]]
   0:[[0:foofoo;1:2;]]
-  #1:record[b:array[union[string,float64]]]
+  #1:record[b:array[union[string,int64]]]
   1:[[0:bar;1:100;1:200;]]
-  1:[[0:bar;0:-;1:200;]]
-  #2:record[c:array[union[string,array[float64]]]]
-  2:[[0:foo;1:[1;2;]]]
-  #3:record[d:array[union[string,bool,array[union[string,float64]],record[dd:array[union[string,float64]]]]]]
-  3:[[0:foo;1:F;2:[0:foo;1:2;]3:[[0:foo;1:2;]]]]
-  #4:record[f:array[union[string,bool,array[union[string,float64]],record[d:record[d:array[union[string,float64]]]]]]]
-  4:[[0:foo;1:F;2:[0:foo;1:2;]3:[[[0:foo;1:2;]]]]]
+  #2:record[b:array[union[string,null,int64]]]
+  2:[[0:bar;-;2:200;]]
+  #3:record[c:array[union[string,array[int64]]]]
+  3:[[0:foo;1:[1;2;]]]
+  #4:record[d:array[union[string,bool,array[union[string,int64]],record[dd:array[union[string,int64,bool]]]]]]
+  4:[[0:foo;1:F;2:[0:foo;1:2;]3:[[0:foo;1:2;2:T;]]]]
+  #5:record[f:array[union[string,bool,array[union[string,int64]],record[[d.d]:array[union[string,int64,bool]]]]]]
+  5:[[0:foo;1:F;2:[0:foo;1:2;]3:[[0:foo;1:2;2:T;]]]]

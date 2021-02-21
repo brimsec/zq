@@ -14,7 +14,7 @@ import (
 
 var ErrBufferOverflow = errors.New("zson scanner buffer size exceeded")
 
-const primitiveRE = `^(([0-9a-fA-Fx_\$\-\+:eEnumsh./TZµ]+)|true|false|null)`
+const primitiveRE = `^(([0-9a-fA-Fx_\$\-\+:eEnumsh./TZµ]+)|true|false|null|-Inf|-inf|\+Inf|\+inf|NaN|nan)`
 const indentationRE = `\n\s*`
 
 type Lexer struct {
@@ -322,6 +322,9 @@ func (l *Lexer) scanTypeName() (string, error) {
 	for {
 		r, n, err := l.peekRune()
 		if err != nil {
+			if err == io.EOF {
+				return s.String(), nil
+			}
 			return "", err
 		}
 		if !zng.TypeChar(r) {
@@ -338,11 +341,35 @@ func (l *Lexer) scanIdentifier() (string, error) {
 		return "", err
 	}
 	if !zng.IsIdentifier(s) {
-		s = ""
+		return "", errors.New("malformed identifier")
 	}
 	return s, nil
 }
 
+// peekPrimitive returns a string that may be a candidate for a primitive token
+// exlusive of string literals.  This works by scanning forward until we see
+// whitespace or EOF while keeping everything buffered.  This could be made more
+// efficient by keeping track of the whitespace boundary and only looking for
+// it when we're past it (or by implementing a proper DFA for literal matching).
 func (l *Lexer) peekPrimitive() (string, error) {
+	var err error
+	var off int
+	for {
+		err = l.check(off + utf8.UTFMax)
+		if err != nil {
+			break
+		}
+		r, n := utf8.DecodeRune(l.cursor[off:])
+		if unicode.IsSpace(r) || r == ',' {
+			break
+		}
+		off += n
+	}
+	if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
+		return "", err
+	}
+	if len(l.cursor) == 0 {
+		return "", io.EOF
+	}
 	return string(l.primitive.Find(l.cursor)), nil
 }

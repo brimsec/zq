@@ -6,6 +6,7 @@ ARCH = "amd64"
 VERSION = $(shell git describe --tags --dirty --always)
 ECR_VERSION = $(VERSION)-$(ZQD_K8S_USER)
 LDFLAGS = -s -X github.com/brimsec/zq/cli.Version=$(VERSION)
+TEMPORAL_VERSION := 1.6.3
 ZEEKTAG := $(shell python -c 'import json ;print(json.load(open("package.json"))["brimDependencies"]["zeekTag"])')
 ZEEKPATH = zeek-$(ZEEKTAG)
 SURICATATAG := $(shell python -c 'import json; print(json.load(open("package.json"))["brimDependencies"]["suricataTag"])')
@@ -42,6 +43,16 @@ $(SAMPLEDATA):
 	git clone --depth=1 https://github.com/brimsec/zq-sample-data $(@D)
 
 sampledata: $(SAMPLEDATA)
+
+.PHONY: bin/tctl
+bin/tctl: bin/tctl-$(TEMPORAL_VERSION)
+	ln -fs $(<F) $@
+
+bin/tctl-$(TEMPORAL_VERSION):
+	mkdir -p $(@D)
+	echo 'module deps' > $@.mod
+	go get -d -modfile=$@.mod go.temporal.io/server/cmd/tools/cli@v$(TEMPORAL_VERSION)
+	go build -modfile=$@.mod -o $@ go.temporal.io/server/cmd/tools/cli
 
 bin/$(ZEEKPATH):
 	@mkdir -p bin
@@ -87,15 +98,19 @@ test-pcapingest: bin/$(ZEEKPATH)
 	@ZEEK="$(CURDIR)/bin/$(ZEEKPATH)/zeekrunner" go test -v -run=PcapPost -tags=pcapingest ./ppl/zqd
 
 .PHONY: test-services
-test-services: build
+test-services: build bin/tctl
 	@ZTEST_PATH="$(CURDIR)/dist:$(CURDIR)/bin" \
 		ZTEST_TAG=services \
 		go test -v -run TestZq/ppl/zqd/db/postgresdb/ztests .
 	@ZTEST_PATH="$(CURDIR)/dist:$(CURDIR)/bin" \
 		ZTEST_TAG=services \
 		go test -v -run TestZq/ppl/zqd/ztests/redis .
+	@ZTEST_PATH="$(CURDIR)/dist:$(CURDIR)/bin" \
+		ZTEST_TAG=services \
+		go test -v -run TestZq/ppl/zqd/temporal/ztests .
 
 .PHONY: test-services-docker
+test-services-docker: export TEMPORAL_VERSION := $(TEMPORAL_VERSION)
 test-services-docker:
 	@docker-compose -f $(CURDIR)/ppl/zqd/scripts/dkc-services.yaml up -d
 	$(MAKE) test-services; \
@@ -116,8 +131,8 @@ test-cluster: build install
 perf-compare: build $(SAMPLEDATA)
 	scripts/comparison-test.sh
 
-zng-output-check: build $(SAMPLEDATA)
-	scripts/zng-output-check.sh
+z-output-check: build $(SAMPLEDATA)
+	scripts/z-output-check.sh
 
 # If the build recipe changes, please also change npm/build.
 build: $(PEG_DEP)

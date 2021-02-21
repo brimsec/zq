@@ -2,6 +2,21 @@ These entries focus on changes we think are relevant to users of Brim,
 zq, or pcap.  For all changes to zqd, its API, or to other components in the
 zq repo, check the git log.
 
+## v0.29.0
+* zqd: Update Zeek pointer to [v3.2.1-brim10](https://github.com/brimsec/zeek/releases/tag/v3.2.1-brim10) which provides the latest [geolocation](https://github.com/brimsec/brim/wiki/Geolocation) data (#2081)
+* zql: Add shaping primitive functions `cast()`, `fill()`, `crop()`, and `order()`, along with `fit()` and `shape()` (#1984, #2059, #2073, #2033)
+* zson: Read ZSON incrementally rather than all at once (#2031)
+* zson: Tighten whitespace in ZSON `-pretty=0` output (#2030)
+* zql: Change parallel graph syntax to use `split` and `=>` (#2037)
+* zson: Add `duration` to the implied type list (#2039)
+* zq: Fix an issue with [`rename`](https://github.com/brimsec/zq/tree/master/zql/docs/processors#rename) where a subsequent `count()` would return no results (#2046)
+* zq: Fix an issue where multiple alias typedefs were generated for the same type, causing a TZNG read failure (#2047)
+* zson: Fix an issue with string scanning in the ZSON parser that caused the failure `parse error: parsing string literal` (#2048)
+* zq: Fix an issue on Windows where `-` was not being treated as a way to read from stdin (#2061)
+* zq: Add support in [`put`](https://github.com/brimsec/zq/tree/master/zql/docs/processors#put) for assigning to `.` and to nested fields (#2018)
+* zson: Fix an issue where reading ZSON caused the failure `parse error: mismatched braces while parsing record type` (#2058)
+* zson: Fix an issue where casting `null` values to string types caused invalid output (#2077)
+
 ## v0.28.0
 **NOTE** - Beginning with this release, a subset of the source code in the
 [github.com/brimsec/zq](https://github.com/brimsec/zq) GitHub repository is
@@ -39,7 +54,6 @@ questions.
 * zqd: Fix an issue where Zeek events generated during pcap import and written to an archivestore were only visible after ingest completion (#1973)
 * zqd: Change the logger configuration to output stacktraces on messages of level "warn" and higher (#1990)
 * zq: Update [performance results](https://github.com/brimsec/zq/blob/master/performance/README.md) to include ZSON read/write (#1974)
-
 
 ## v0.27.1
 * zq: Fix an issue where nested nulls caused a panic in CSV output (#1954)

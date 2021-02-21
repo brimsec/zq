@@ -23,3 +23,7 @@ foo\x11\bar
 *abc*
 field=null
 every 3600s count() by _path
+s="harefoot-raucous"
+s=/a/b
+match(_path=http and windows)
+f(1) and g(2) or h(3)

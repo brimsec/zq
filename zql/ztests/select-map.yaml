@@ -1,0 +1,13 @@
+zql: cut out=collect(select(.).map($*a))
+
+input: |
+  #0:record[a:int32,b:int32,c:int32]
+  0:[1;2;3;]
+  0:[2;3;4;]
+  0:[3;4;5;]
+
+output: |
+  #0:record[out:array[int32]]
+  0:[[1;2;3;]]
+  0:[[4;6;8;]]
+  0:[[9;12;15;]]

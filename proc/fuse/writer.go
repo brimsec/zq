@@ -6,8 +6,8 @@ import (
 	"github.com/brimsec/zq/zng/resolver"
 )
 
-func WriteCloser(wc zbuf.WriteCloser) zbuf.WriteCloser {
-	return &writeCloser{wc, NewFuser(resolver.NewContext(), MemMaxBytes)}
+func WriteCloser(wc zbuf.WriteCloser, zctx *resolver.Context) zbuf.WriteCloser {
+	return &writeCloser{wc, NewFuser(zctx, MemMaxBytes)}
 }
 
 type writeCloser struct {

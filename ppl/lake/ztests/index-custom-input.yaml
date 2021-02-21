@@ -5,7 +5,7 @@ script: |
   zar map -R logs  -q -o sums.zng "sum(v) by s"
   zar index create -R logs -f 10000 -i sums.zng -q -o testindex -z "put key=s | sort key"
   echo ===
-  id=$(zar stat -f zng -R logs | zq -f text 'type = index | cut definition.id | head 1' -)
+  id=$(zar stat -f zng -R logs | zq -f text '.type = index | cut definition.id | head 1' -)
   microindex section -t -s 1 $(find logs/zd/20200422/ -name "idx-$id.zng" | head -n 1)
 
 inputs:

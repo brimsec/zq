@@ -35,6 +35,15 @@ type Pair struct {
 }
 
 func (c *Pair) Equal() bool {
+	// bytes.Equal() returns true for nil compared to an empty-slice,
+	// which doesn't work for Z null comparisons, so we explicitly check
+	// for the nil condition here.
+	if c.A == nil {
+		return c.B == nil
+	}
+	if c.B == nil {
+		return c.A == nil
+	}
 	return bytes.Equal(c.A, c.B)
 }
 
@@ -59,6 +68,12 @@ func (c *Pair) Coerce(a, b zng.Value) (int, error) {
 			id = zng.IdBstring
 		}
 		return id, nil
+	}
+	if aid == zng.IdNull {
+		return bid, nil
+	}
+	if bid == zng.IdNull {
+		return aid, nil
 	}
 	return 0, ErrIncompatibleTypes
 }

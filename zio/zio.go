@@ -43,7 +43,7 @@ func Extension(format string) string {
 		return ".txt"
 	case "table":
 		return ".tbl"
-	case "zng", "azng":
+	case "zng":
 		return ".zng"
 	case "zson":
 		return ".zson"

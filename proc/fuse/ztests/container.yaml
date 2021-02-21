@@ -3,10 +3,10 @@ zql: fuse
 input: |
   #0:record[a:string,r:record[x:int32,y:int32]]
   0:[hello;[1;2;]]
-  #1:record[f:record[x:int32,y:int32],s:string]
-  1:[[3;4;]world;]
+  #1:record[r:record[y:int32,z:int32],s:string,r2:record[x:int32]]
+  1:[[4;5;]world;[6;]]
 
 output: |
-  #0:record[a:string,r:record[x:int32,y:int32],f:record[x:int32,y:int32],s:string]
-  0:[hello;[1;2;]-;-;]
-  0:[-;-;[3;4;]world;]
+  #0:record[a:string,r:record[x:int32,y:int32,z:int32],s:string,r2:record[x:int32]]
+  0:[hello;[1;2;-;]-;-;]
+  0:[-;[-;4;5;]world;[6;]]

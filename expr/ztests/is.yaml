@@ -1,0 +1,12 @@
+zql: cut isRecType=is(r, {a:int32}), isString=is(s, type(string))
+
+input: |
+  #0:record[r:record[a:int32],s:int32]
+  0:[[1;]123;]
+  #1:record[r:record[a:int8],s:string]
+  1:[[1;]a;]
+
+output: |
+  #0:record[isRecType:bool,isString:bool]
+  0:[T;F;]
+  0:[F;T;]

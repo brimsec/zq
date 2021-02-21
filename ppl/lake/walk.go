@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/brimsec/zq/pkg/iosrc"
@@ -12,6 +13,7 @@ import (
 	"github.com/brimsec/zq/zbuf"
 	"github.com/brimsec/zq/zqe"
 	"github.com/segmentio/ksuid"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -79,10 +81,11 @@ func tsDirVisit(ctx context.Context, lk *Lake, filterSpan nano.Span, visitor tsD
 		if err != nil {
 			return err
 		}
-		chunks, err := tsDirEntriesToChunks(ctx, lk, filterSpan, d, dirents)
+		chunks, err := tsDirEntriesToChunks(ctx, lk, d, dirents)
 		if err != nil {
 			return err
 		}
+		chunks = chunks.Overlapping(filterSpan)
 		if err := visitor(d, chunks); err != nil {
 			return err
 		}
@@ -90,7 +93,7 @@ func tsDirVisit(ctx context.Context, lk *Lake, filterSpan nano.Span, visitor tsD
 	return nil
 }
 
-func tsDirEntriesToChunks(ctx context.Context, lk *Lake, filterSpan nano.Span, tsDir tsDir, entries []iosrc.Info) ([]chunk.Chunk, error) {
+func tsDirEntriesToChunks(ctx context.Context, lk *Lake, tsDir tsDir, entries []iosrc.Info) (chunk.Chunks, error) {
 	type seen struct {
 		data bool
 		meta bool
@@ -111,32 +114,42 @@ func tsDirEntriesToChunks(ctx context.Context, lk *Lake, filterSpan nano.Span, t
 			m[id] = s
 		}
 	}
-	var chunks []chunk.Chunk
+
+	var mu sync.Mutex
+	chunks := make([]chunk.Chunk, 0, len(m))
+	group, ctx := errgroup.WithContext(ctx)
+
 	for id, seen := range m {
 		if !seen.meta || !seen.data {
 			continue
 		}
-		dir := tsDir.path(lk)
-		mdPath := chunk.MetadataPath(dir, id)
-		b, err := lk.immfiles.ReadFile(ctx, mdPath)
-		if err != nil {
-			return nil, err
-		}
-
-		md, err := chunk.UnmarshalMetadata(b, lk.DataOrder)
-		if err != nil {
-			if zqe.IsNotFound(err) {
-				continue
+		id := id
+		group.Go(func() error {
+			dir := tsDir.path(lk)
+			mdPath := chunk.MetadataPath(dir, id)
+			b, err := lk.immfiles.ReadFile(ctx, mdPath)
+			if err != nil {
+				if zqe.IsNotFound(err) {
+					return nil
+				}
+				return fmt.Errorf("failed to read chunk metadata from %v: %w", mdPath, err)
 			}
-			return nil, fmt.Errorf("failed to read chunk metadata from %v: %w", mdPath, err)
-		}
-		chunk := md.Chunk(dir, id)
-		if !filterSpan.Overlaps(chunk.Span()) {
-			continue
-		}
-		chunks = append(chunks, chunk)
+
+			md, err := chunk.UnmarshalMetadata(b, lk.DataOrder)
+			if err != nil {
+				return err
+			}
+
+			mu.Lock()
+			chunks = append(chunks, md.Chunk(dir, id))
+			mu.Unlock()
+			return nil
+		})
 	}
-	return chunks, nil
+
+	// Wait for goroutines before accessing chunks to avoid a race condition.
+	err := group.Wait()
+	return chunks, err
 }
 
 type Visitor func(chunk chunk.Chunk) error

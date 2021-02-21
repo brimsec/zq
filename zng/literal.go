@@ -1,7 +1,7 @@
 package zng
 
 import (
-	"github.com/brimsec/zq/ast"
+	"github.com/brimsec/zq/compiler/ast"
 )
 
 //XXX

@@ -1,0 +1,10 @@
+zql: const t = {a:string} ; put x=t
+
+input: |
+  {a:1}
+  {a:2}
+
+output: |
+  #0:record[a:int64,x:type]
+  0:[1;{a:string};]
+  0:[2;{a:string};]

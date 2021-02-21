@@ -5,13 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"syscall"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go/service/s3/s3iface"
 )
 
 type Reader struct {
-	client *s3.S3
+	client s3iface.S3API
 	ctx    context.Context
 	bucket string
 	key    string
@@ -21,8 +23,8 @@ type Reader struct {
 	body   io.ReadCloser
 }
 
-func NewReader(ctx context.Context, path string, cfg *aws.Config) (*Reader, error) {
-	info, err := Stat(ctx, path, cfg)
+func NewReader(ctx context.Context, path string, client s3iface.S3API) (*Reader, error) {
+	info, err := Stat(ctx, path, client)
 	if err != nil {
 		return nil, err
 	}
@@ -31,7 +33,7 @@ func NewReader(ctx context.Context, path string, cfg *aws.Config) (*Reader, erro
 		return nil, err
 	}
 	return &Reader{
-		client: newClient(cfg),
+		client: client,
 		ctx:    ctx,
 		bucket: bucket,
 		key:    key,
@@ -67,6 +69,7 @@ func (r *Reader) Read(p []byte) (int, error) {
 	if r.offset >= r.size {
 		return 0, io.EOF
 	}
+request:
 	if r.body == nil {
 		body, err := r.makeRequest(r.offset, r.size-r.offset)
 		if err != nil {
@@ -74,7 +77,19 @@ func (r *Reader) Read(p []byte) (int, error) {
 		}
 		r.body = body
 	}
+
 	n, err := r.body.Read(p)
+	if errors.Is(err, syscall.ECONNRESET) {
+		// If the error is result of a connection reset set the body to nil and
+		// attempt to restart the connection at the current offset. There seems to
+		// be a curious behavior of the s3 service that happens when a single
+		// session maintains numerous long-running download connections to various
+		// objects in a bucket- the service appears to reset connections at random.
+		//
+		// See: https://github.com/aws/aws-sdk-go/issues/1242
+		r.body = nil
+		goto request
+	}
 	if err == io.EOF {
 		err = nil
 	}

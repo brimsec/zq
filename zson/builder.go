@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
+	"math"
 	"net"
 	"strconv"
 	"time"
@@ -81,7 +82,11 @@ func (b *Builder) buildPrimitive(val *Primitive) error {
 	case *zng.TypeOfDuration:
 		v, err := time.ParseDuration(val.Text)
 		if err != nil {
-			return fmt.Errorf("invalid duration: %s", val.Text)
+			if val.Text == minDuration {
+				v = time.Duration(math.MinInt64)
+			} else {
+				return fmt.Errorf("invalid duration: %s", val.Text)
+			}
 		}
 		b.AppendPrimitive(zng.EncodeDuration(int64(v)))
 		return nil
@@ -110,12 +115,19 @@ func (b *Builder) buildPrimitive(val *Primitive) error {
 		return nil
 	case *zng.TypeOfBytes:
 		s := val.Text
-		if len(s) < 4 || s[0:2] != "0x" {
+		if len(s) < 2 || s[0:2] != "0x" {
 			return fmt.Errorf("invalid bytes: %s", s)
 		}
-		bytes, err := hex.DecodeString(s[2:])
-		if err != nil {
-			return fmt.Errorf("invalid bytes: %s (%s)", s, err.Error())
+		var bytes []byte
+		if len(s) == 2 {
+			// '0x' is an empty byte string (not null byte string)
+			bytes = make([]byte, 0, 0)
+		} else {
+			var err error
+			bytes, err = hex.DecodeString(s[2:])
+			if err != nil {
+				return fmt.Errorf("invalid bytes: %s (%s)", s, err.Error())
+			}
 		}
 		b.AppendPrimitive(zcode.Bytes(bytes))
 		return nil

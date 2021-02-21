@@ -286,7 +286,7 @@ To achieve this with a field/value match, we can use [glob wildcards](#glob-wild
 
 #### Example:
 ```zq-command
-zq -f table 'certificate.subject=~*Widgits*' *.log.gz
+zq -f table 'certificate.subject=*Widgits*' *.log.gz
 ```
 
 #### Output:
@@ -304,7 +304,7 @@ x509  2018-03-24T17:15:47.493786Z FdBWBA3eODh6nHFt82 3                   C5F8CDF
 
 #### Example:
 ```zq-command
-zq -f table 'uri =~ /scripts\/waE8_BuNCEKM.(pl|sh)/' http.log.gz
+zq -f table 'uri = /scripts\/waE8_BuNCEKM.(pl|sh)/' http.log.gz
 ```
 
 #### Output:
@@ -322,7 +322,7 @@ Determining whether the value of a Zeek `addr`-type field is within a subnet als
 
 #### Example:
 ```zq-command
-zq -f table 'id.resp_h =~ 208.78.0.0/16' conn.log.gz
+zq -f table 'id.resp_h in 208.78.0.0/16' conn.log.gz
 ```
 
 #### Output:
@@ -378,12 +378,12 @@ It's possible to search across _all_ fields of the value's data type by entering
 For example, the following search matches many `ssl` and `conn` events that contain the value `10.150.0.85` in `addr`-type fields of the `id` record, such as `id.resp_h`. It also matches `notice` events where it appears in `id.resp_h` and also `dst`, a top-level field also of the `addr` type. Compare this with our [bare word](#bare-word) example where we also matched as a substring of the `string`-type field named `certificate.subject`. This highlights how bare word searches match both on typed values and their string representation, whereas a field/value match is stricter, and considers typed values only.
 
 #### Example:
-```zq-command
+```zq-command-disabled
 zq -f table '**=10.150.0.85' *.log.gz
 ```
 
 #### Output:
-```zq-output head:8
+```zq-output-disabled head:8
 _PATH TS                          UID                ID.ORIG_H    ID.ORIG_P ID.RESP_H   ID.RESP_P PROTO SERVICE DURATION ORIG_BYTES RESP_BYTES CONN_STATE LOCAL_ORIG LOCAL_RESP MISSED_BYTES HISTORY   ORIG_PKTS ORIG_IP_BYTES RESP_PKTS RESP_IP_BYTES TUNNEL_PARENTS
 conn  2018-03-24T17:15:22.18798Z  CFis4J1xm9BOgtib34 10.47.8.10   56800     10.150.0.85 443       tcp   -       1.000534 31         77         SF         -          -          0            ^dtAfDTFr 8         382           10        554           -
 conn  2018-03-24T17:15:25.527535Z CnvVUp1zg3fnDKrlFk 10.47.27.186 58665     10.150.0.85 443       tcp   -       1.000958 31         77         SF         -          -          0            ^dtAfDFTr 8         478           10        626           -
@@ -494,7 +494,7 @@ For example, suppose you've noticed that the vast majority of the sample Zeek ev
 
 #### Example:
 ```zq-command
-zq -f table 'not _path=~/conn|dns|files|ssl|x509|http|weird/' *.log.gz
+zq -f table 'not _path=/conn|dns|files|ssl|x509|http|weird/' *.log.gz
 ```
 
 #### Output:
@@ -538,11 +538,12 @@ smb_mapping 2018-03-24T17:15:25.562072Z C3kUnM2kEJZnvZmSp7 10.164.94.120 45903  
 ...
 ```
 
+XXX fix comment
 If we change the order of the terms to what's shown below, now we match almost every event we have. This is due to the left-to-right evaluation: Since the `not` comes first, it inverts the logic of _everything that comes after it_, hence giving us all stored events _other than_ `smb_mapping` events that have the value of their `share_type` field set to `DISK`.
 
 #### Example:
 ```zq-command
-zq -f table 'not share_type=DISK _path=smb_mapping' *.log.gz
+zq -f table 'not (share_type=DISK and _path=smb_mapping)' *.log.gz
 ```
 
 #### Output:

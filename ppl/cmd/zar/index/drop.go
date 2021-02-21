@@ -51,6 +51,11 @@ func (c *DropCommand) Run(args []string) error {
 }
 
 func (c *DropCommand) run(args []string) error {
+	defer c.Cleanup()
+	if err := c.Init(); err != nil {
+		return err
+	}
+
 	if len(args) == 0 {
 		return errors.New("no index definition specified")
 	}

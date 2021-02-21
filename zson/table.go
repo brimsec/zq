@@ -1,8 +1,6 @@
 package zson
 
 import (
-	"fmt"
-	"strings"
 	"sync"
 
 	"github.com/brimsec/zq/zcode"
@@ -26,7 +24,12 @@ func NewTypeTable(zctx *resolver.Context) *TypeTable {
 }
 
 func (t *TypeTable) enter(typ zng.Type, bytes zcode.Bytes) {
-	t.toBytes[typ] = bytes
+	canonical := typ.ZSON()
+	t.toBytes[typ] = zcode.Bytes(canonical)
+	// We put both the canonical type string and whatever non-canonical
+	// string might have been used in case the non-canonical string is
+	// used repeatedly so we don't look it up every time.
+	t.toType[canonical] = typ
 	t.toType[string(bytes)] = typ
 }
 
@@ -46,24 +49,12 @@ func (t *TypeTable) LookupType(zson string) (zng.Type, error) {
 	defer t.mu.Unlock()
 	typ, ok := t.toType[zson]
 	if !ok {
-		zp, err := NewParser(strings.NewReader(zson))
+		var err error
+		typ, err = LookupType(t.zctx, zson)
 		if err != nil {
 			return nil, err
 		}
-		ast, err := zp.ParseValue()
-		if ast == nil || err != nil {
-			return nil, err
-		}
-		a := NewAnalyzer()
-		val, err := a.ConvertValue(t.zctx, ast)
-		if err != nil {
-			return nil, err
-		}
-		tv, ok := val.(*TypeValue)
-		if !ok {
-			return nil, fmt.Errorf("internal error: value of type %T in TypeTable.LookupType()", val)
-		}
-		typ = tv.Value
+		t.enter(typ, zcode.Bytes(zson))
 	}
 	return typ, nil
 }

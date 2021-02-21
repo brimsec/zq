@@ -7,8 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/brimsec/zq/ast"
 	"github.com/brimsec/zq/compiler"
+	"github.com/brimsec/zq/compiler/ast"
+	"github.com/brimsec/zq/compiler/kernel"
 	"github.com/brimsec/zq/expr"
 	"github.com/brimsec/zq/pkg/nano"
 	"github.com/brimsec/zq/zio/tzngio"
@@ -53,7 +54,7 @@ func compileExpr(s string) (expr.Evaluator, error) {
 		return nil, errors.New("expected Expression")
 	}
 
-	return compiler.CompileExpr(resolver.NewContext(), node)
+	return kernel.TestCompileExpr(resolver.NewContext(), node)
 }
 
 // Compile and evaluate a zql expression against a provided Record.
@@ -143,7 +144,7 @@ func TestPrimitives(t *testing.T) {
 	testSuccessful(t, "s", record, zstring("hello"))
 
 	// Test bad field reference
-	testError(t, "doesnexist", record, expr.ErrNoSuchField, "referencing non-existent field")
+	testError(t, "doesnexist", record, zng.ErrMissing, "referencing nonexistent field")
 }
 
 func TestComplex(t *testing.T) {
@@ -466,21 +467,12 @@ func TestCompareNonNumbers(t *testing.T) {
 }
 
 func TestPattern(t *testing.T) {
-	testSuccessful(t, `"abc" =~ "abc"`, nil, zbool(true))
-	testSuccessful(t, `"abc" =~ "a*"`, nil, zbool(true))
-	testSuccessful(t, `"abc" =~ "*bc"`, nil, zbool(true))
-	testSuccessful(t, `"abc" =~ "x*"`, nil, zbool(false))
-
-	testSuccessful(t, `"abc" !~ "abc"`, nil, zbool(false))
-	testSuccessful(t, `"abc" !~ "a*"`, nil, zbool(false))
-	testSuccessful(t, `"abc" !~ "*bc"`, nil, zbool(false))
-	testSuccessful(t, `"abc" !~ "x*"`, nil, zbool(true))
-
-	testSuccessful(t, "10.1.1.1 =~ 10.0.0.0/8", nil, zbool(true))
-	testSuccessful(t, "10.1.1.1 =~ 192.168.0.0/16", nil, zbool(false))
-
-	testSuccessful(t, "10.1.1.1 !~ 10.0.0.0/8", nil, zbool(false))
-	testSuccessful(t, "10.1.1.1 !~ 192.168.0.0/16", nil, zbool(true))
+	testSuccessful(t, `"abc" = "abc"`, nil, zbool(true))
+	testSuccessful(t, `"abc" != "abc"`, nil, zbool(false))
+	testSuccessful(t, "10.1.1.1 in 10.0.0.0/8", nil, zbool(true))
+	testSuccessful(t, "10.1.1.1 in 192.168.0.0/16", nil, zbool(false))
+	testSuccessful(t, "!(10.1.1.1 in 10.0.0.0/8)", nil, zbool(false))
+	testSuccessful(t, "!(10.1.1.1 in 192.168.0.0/16)", nil, zbool(true))
 }
 
 func TestIn(t *testing.T) {
@@ -668,7 +660,7 @@ func TestFieldReference(t *testing.T) {
 	testSuccessful(t, "rec.s", record, zstring("boo"))
 	testSuccessful(t, "rec.f", record, zfloat64(6.1))
 
-	testError(t, "rec.no", record, expr.ErrNoSuchField, "referencing nonexistent field")
+	testError(t, "rec.no", record, zng.ErrMissing, "referencing nonexistent field")
 }
 
 func TestConditional(t *testing.T) {

@@ -7,7 +7,9 @@ import (
 	"unicode/utf8"
 
 	"github.com/brimsec/zq/expr/result"
+	"github.com/brimsec/zq/zcode"
 	"github.com/brimsec/zq/zng"
+	"github.com/brimsec/zq/zng/resolver"
 )
 
 // XXX these string format functions should be handlded by :string cast
@@ -244,4 +246,88 @@ func (*trim) Call(args []zng.Value) (zng.Value, error) {
 	// XXX GC
 	s := strings.TrimSpace(string(zv.Bytes))
 	return zng.Value{zng.TypeString, zng.EncodeString(s)}, nil
+}
+
+type split struct {
+	zctx  *resolver.Context
+	typ   zng.Type
+	bytes zcode.Bytes
+}
+
+func newSplit(zctx *resolver.Context) *split {
+	return &split{
+		typ: zctx.LookupTypeArray(zng.TypeString),
+	}
+}
+
+func (s *split) Call(args []zng.Value) (zng.Value, error) {
+	zs := args[0]
+	zsep := args[1]
+	if !zs.IsStringy() || !zsep.IsStringy() {
+		return badarg("split")
+	}
+	if zs.Bytes == nil || zsep.Bytes == nil {
+		return zng.Value{Type: s.typ}, nil
+	}
+	str, err := zng.DecodeString(zs.Bytes)
+	if err != nil {
+		return zng.Value{}, err
+	}
+	sep, err := zng.DecodeString(zsep.Bytes)
+	if err != nil {
+		return zng.Value{}, err
+	}
+	splits := strings.Split(str, sep)
+	b := s.bytes[:0]
+	for _, substr := range splits {
+		b = zcode.AppendPrimitive(b, zng.EncodeString(substr))
+	}
+	s.bytes = b
+	return zng.Value{s.typ, b}, nil
+}
+
+type join struct {
+	bytes   zcode.Bytes
+	builder strings.Builder
+}
+
+func (j *join) Call(args []zng.Value) (zng.Value, error) {
+	zsplits := args[0]
+	typ, ok := zng.AliasedType(zsplits.Type).(*zng.TypeArray)
+	if !ok {
+		return zng.NewErrorf("argument to join() is not an array"), nil
+	}
+	if !zng.IsStringy(typ.Type.ID()) {
+		return zng.NewErrorf("argument to join() is not a string array"), nil
+	}
+	var separator string
+	if len(args) == 2 {
+		zsep := args[1]
+		if !zsep.IsStringy() {
+			return zng.NewErrorf("separator argument to join() is not a string"), nil
+		}
+		var err error
+		separator, err = zng.DecodeString(zsep.Bytes)
+		if err != nil {
+			return zng.Value{}, err
+		}
+	}
+	b := j.builder
+	b.Reset()
+	it := zsplits.Bytes.Iter()
+	var sep string
+	for !it.Done() {
+		bytes, _, err := it.Next()
+		if err != nil {
+			return zng.Value{}, err
+		}
+		s, err := zng.DecodeString(bytes)
+		if err != nil {
+			return zng.Value{}, err
+		}
+		b.WriteString(sep)
+		b.WriteString(s)
+		sep = separator
+	}
+	return zng.Value{zng.TypeString, zng.EncodeString(b.String())}, nil
 }

@@ -9,7 +9,7 @@ import (
 
 	"github.com/brimsec/zq/api"
 	"github.com/brimsec/zq/api/client"
-	"github.com/brimsec/zq/compiler"
+	"github.com/brimsec/zq/compiler/kernel"
 	"github.com/brimsec/zq/ppl/zqd/recruiter"
 	"github.com/brimsec/zq/proc"
 	"github.com/brimsec/zq/zbuf"
@@ -208,7 +208,7 @@ func (pg *parallelGroup) run() {
 	close(pg.sourceChan)
 }
 
-func createParallelGroup(pctx *proc.Context, filter *compiler.Filter, msrc MultiSource, mcfg MultiConfig) ([]proc.Interface, *parallelGroup, error) {
+func createParallelGroup(pctx *proc.Context, filter *kernel.Filter, msrc MultiSource, mcfg MultiConfig) ([]proc.Interface, *parallelGroup, error) {
 	pg := &parallelGroup{
 		filter: SourceFilter{
 			Filter: filter,

@@ -38,7 +38,7 @@ func handleWorkerRootSearch(c *Core, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", out.ContentType())
-	if err := srch.RunDistributed(r.Context(), store, out, req.MaxWorkers, c.worker, c.logger); err != nil {
+	if err := srch.Run(r.Context(), store, out, req.MaxWorkers, c.conf.Worker); err != nil {
 		c.requestLogger(r).Warn("Error writing response", zap.Error(err))
 	}
 }

@@ -1,4 +1,4 @@
-# `zq` [![Tests][tests-img]][tests] [![GoDoc][doc-img]][doc]
+# `zq` [![Tests][tests-img]][tests]
 
 The `zq` repository contains tools and components used to search, analyze,
 and store structured log data, including:
@@ -42,8 +42,6 @@ See the [contributing guide](CONTRIBUTING.md) on how you can help improve `zq`!
 
 Join our [Public Slack](https://www.brimsecurity.com/join-slack/) workspace for announcements, Q&A, and to trade tips!
 
-[doc-img]: https://godoc.org/github.com/brimsec/zq?status.svg
-[doc]: https://pkg.go.dev/github.com/brimsec/zq
 [tests-img]: https://github.com/brimsec/zq/workflows/Tests/badge.svg
 [tests]: https://github.com/brimsec/zq/actions?query=workflow%3ATests
 

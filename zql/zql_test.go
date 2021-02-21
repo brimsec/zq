@@ -12,8 +12,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/brimsec/zq/ast"
 	"github.com/brimsec/zq/compiler"
+	"github.com/brimsec/zq/compiler/ast"
 	"github.com/brimsec/zq/pkg/fs"
 	"github.com/brimsec/zq/zql"
 	"github.com/brimsec/zq/ztest"
@@ -123,15 +123,22 @@ func parseString(in string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if seq, ok := tree.(*ast.SequentialProc); ok {
+		tree = seq.Procs[0]
+	}
 	filt, ok := tree.(*ast.FilterProc)
 	if !ok {
 		return "", fmt.Errorf("Expected FilterProc got %T", tree)
 	}
-	comp, ok := filt.Filter.(*ast.CompareField)
+	comp, ok := filt.Filter.(*ast.BinaryExpression)
 	if !ok {
-		return "", fmt.Errorf("Expected CompareField got %T", filt.Filter)
+		return "", fmt.Errorf("Expected BinaryExpression got %T", filt.Filter)
 	}
-	return comp.Value.Value, nil
+	literal, ok := comp.RHS.(*ast.Literal)
+	if !ok {
+		return "", fmt.Errorf("Expected Literal got %T", filt.Filter)
+	}
+	return literal.Value, nil
 }
 
 // Test handling of unicode escapes in the parser

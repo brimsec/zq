@@ -1,0 +1,24 @@
+script: |
+  zq -f zson -i zson -pretty=0 in.zson
+
+inputs:
+  - name: in.zson
+    data: |
+      {float64:null (float64)} (=0)
+      {float64:0e+00} (0)
+      {float64:1.7976931348623157e+308} (0)
+      {float64:5e-324}
+      {float64:-Inf} (0)
+      {float64:+Inf}
+      {float64:NaN} (0)
+
+outputs:
+  - name: stdout
+    data: |
+      {float64:null (float64)}
+      {float64:0.}
+      {float64:1.7976931348623157e+308}
+      {float64:5e-324}
+      {float64:-Inf}
+      {float64:+Inf}
+      {float64:NaN}

@@ -6,6 +6,7 @@ import (
 	"github.com/brimsec/zq/zbuf"
 	"github.com/brimsec/zq/zio"
 	"github.com/brimsec/zq/zio/csvio"
+	"github.com/brimsec/zq/zng/resolver"
 )
 
 // CSVOutput implements the Output inteface and writes csv encoded-output
@@ -18,7 +19,7 @@ type CSVOutput struct {
 func NewCSVOutput(response http.ResponseWriter, ctrl bool) *CSVOutput {
 	return &CSVOutput{
 		response: response,
-		wc: csvio.NewWriter(zio.NopCloser(response), csvio.WriterOpts{
+		wc: csvio.NewWriter(zio.NopCloser(response), resolver.NewContext(), csvio.WriterOpts{
 			EpochDates: false,
 			Fuse:       true,
 			UTF8:       true,

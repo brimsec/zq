@@ -5,7 +5,7 @@ script: |
   zar index ls -R logs -stats -f zng > stats.zng
   zq -f table "drop id" stats.zng
   echo ===
-  zar index drop -R logs $(zq -f text "desc=field-_path | cut id" stats.zng) >/dev/null
+  zar index drop -R logs $(zq -f text "desc='field-_path' | cut id" stats.zng) >/dev/null
   zar index ls -R logs -stats -f zng | zq -f table "drop id" -
 
 inputs:

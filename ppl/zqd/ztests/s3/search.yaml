@@ -3,7 +3,7 @@ script: |
   zapi -h $ZQD_HOST new -d s3://bucket/zartest -k archivestore -thresh 20KiB testsp
   zapi -h $ZQD_HOST -s testsp post babble.tzng >/dev/null
   echo ===
-  zapi -h $ZQD_HOST -s testsp get -f tzng "s=harefoot-raucous"
+  zapi -h $ZQD_HOST -s testsp get -f tzng 's="harefoot-raucous"'
 
 inputs:
   - name: babble.tzng

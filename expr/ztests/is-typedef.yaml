@@ -1,0 +1,26 @@
+zql: |
+  type socket={addr:ip, port:uint16}
+  const PI=3.14
+  is(src,type(socket)) | put pi=PI
+
+input: |
+  {
+      info: "Connection Example",
+      src: { addr: 10.1.1.2, port: 80 (uint16) } (=socket),
+      dst: { addr: 10.0.1.2, port: 20130 } (socket)
+  } (=conn)
+  {
+      info: "Access List Example",
+      nets: [ 10.1.1.0/24, 10.1.2.0/24 ]
+  } (=access_list)
+  {
+      info: "Connection Example 2",
+      src: { addr: 10.1.1.8, port: 80 },
+      dst: { addr: 10.1.2.88, port: 19801 }
+  } (conn)
+
+output: |
+  #socket=record[addr:ip,port:uint16]
+  #0:record[info:string,src:socket,dst:socket,pi:float64]
+  0:[Connection Example;[10.1.1.2;80;][10.0.1.2;20130;]3.14;]
+  0:[Connection Example 2;[10.1.1.8;80;][10.1.2.88;19801;]3.14;]

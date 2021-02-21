@@ -1,0 +1,11 @@
+zql: cut u1=union(select(r1)),u2=union(select(r1,r2))
+
+input: |
+  #0:record[r1:record[a:int32,b:int32],r2:record[a:int32,b:int32]]
+  0:[[1;2;][3;4;]]
+  0:[[3;4;][5;6;]]
+
+output: |
+  #0:record[u1:set[int32],u2:set[int32]]
+  0:[[1;2;][1;2;3;4;]]
+  0:[[3;4;][3;4;5;6;]]

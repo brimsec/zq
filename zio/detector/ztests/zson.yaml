@@ -1,0 +1,17 @@
+zql: '*'
+
+input: |
+  {_path:"conn"} (=0)
+  {_path:"foo"} (0)
+  {_path:"conn"} (0)
+  {a:["foo","bar"] (=1)} (=2)
+  {a:["bar"]} (2)
+
+output: |
+  #0:record[_path:string]
+  0:[conn;]
+  0:[foo;]
+  0:[conn;]
+  #1:record[a:array[string]]
+  1:[[foo;bar;]]
+  1:[[bar;]]

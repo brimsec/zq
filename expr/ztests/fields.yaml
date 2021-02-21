@@ -1,0 +1,12 @@
+zql: cut fields(.), fields2=fields(r)
+
+input: |
+  #0:record[r:record[a:int32],s:int32]
+  0:[[1;]123;]
+  #1:record[r:record[a:int8,b:int8],s:string]
+  1:[[1;2;]a;]
+
+output: |
+  #0:record[fields:array[string],fields2:array[string]]
+  0:[[r.a;s;][a;]]
+  0:[[r.a;r.b;s;][a;b;]]
