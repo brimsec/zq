@@ -31,55 +31,6 @@ func (t *TypeSet) String() string {
 	return fmt.Sprintf("set[%s]", t.Type)
 }
 
-func (t *TypeSet) Decode(zv zcode.Bytes) ([]Value, error) {
-	if zv == nil {
-		return nil, nil
-	}
-	return parseContainer(t, t.Type, zv)
-}
-
-func (t *TypeSet) Parse(in []byte) (zcode.Bytes, error) {
-	return ParseContainer(t, in)
-}
-
-func (t *TypeSet) StringOf(zv zcode.Bytes, fmt OutFmt, _ bool) string {
-	if len(zv) == 0 && (fmt == OutFormatZeek || fmt == OutFormatZeekAscii) {
-		return "(empty)"
-	}
-
-	var b strings.Builder
-	separator := byte(',')
-	if fmt == OutFormatZNG {
-		b.WriteByte('[')
-		separator = ';'
-	}
-
-	first := true
-	it := zv.Iter()
-	for !it.Done() {
-		val, _, err := it.Next()
-		if err != nil {
-			//XXX
-			b.WriteString("ERR")
-			break
-		}
-		if first {
-			first = false
-		} else {
-			b.WriteByte(separator)
-		}
-		b.WriteString(t.Type.StringOf(val, fmt, true))
-	}
-
-	if fmt == OutFormatZNG {
-		if !first {
-			b.WriteByte(';')
-		}
-		b.WriteByte(']')
-	}
-	return b.String()
-}
-
 func (t *TypeSet) Marshal(zv zcode.Bytes) (interface{}, error) {
 	// start out with zero-length container so we get "[]" instead of nil
 	vals := []Value{}

@@ -54,40 +54,6 @@ func (t *TypeMap) Decode(zv zcode.Bytes) (Value, Value, error) {
 	return Value{t.KeyType, key}, Value{t.ValType, val}, nil
 }
 
-func (t *TypeMap) Parse(in []byte) (zcode.Bytes, error) {
-	return ParseContainer(t, in)
-}
-
-func (t *TypeMap) StringOf(zv zcode.Bytes, fmt OutFmt, _ bool) string {
-	var b strings.Builder
-	it := zv.Iter()
-	b.WriteByte('[')
-	for !it.Done() {
-		val, container, err := it.Next()
-		if err != nil {
-			//XXX
-			b.WriteString("ERR")
-			break
-		}
-		b.WriteString(t.KeyType.StringOf(val, fmt, true))
-		if !container {
-			b.WriteByte(';')
-		}
-		val, container, err = it.Next()
-		if err != nil {
-			//XXX
-			b.WriteString("ERR")
-			break
-		}
-		b.WriteString(t.ValType.StringOf(val, fmt, true))
-		if !container {
-			b.WriteByte(';')
-		}
-	}
-	b.WriteByte(']')
-	return b.String()
-}
-
 func (t *TypeMap) Marshal(zv zcode.Bytes) (interface{}, error) {
 	// start out with zero-length container so we get "[]" instead of nil
 	vals := []Value{}

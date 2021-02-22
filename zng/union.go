@@ -33,18 +33,6 @@ func (t *TypeUnion) TypeIndex(index int) (Type, error) {
 	return t.Types[index], nil
 }
 
-func (t *TypeUnion) String() string {
-	var ss []string
-	for _, typ := range t.Types {
-		ss = append(ss, typ.String())
-	}
-	return fmt.Sprintf("union[%s]", strings.Join(ss, ","))
-}
-
-func (t *TypeUnion) Parse(in []byte) (zcode.Bytes, error) {
-	return ParseContainer(t, in)
-}
-
 // SplitZng takes a zng encoding of a value of the receiver's union type and
 // returns the concrete type of the value, its index into the union
 // type, and the value encoding.
@@ -92,17 +80,6 @@ func (t *TypeUnion) SplitTzng(in []byte) (Type, int, []byte, error) {
 		return nil, -1, nil, err
 	}
 	return typ, index, in[c+1:], nil
-}
-
-func (t *TypeUnion) StringOf(zv zcode.Bytes, ofmt OutFmt, _ bool) string {
-	typ, index, iv, err := t.SplitZng(zv)
-	if err != nil {
-		// this follows set and record StringOfs. Like there, XXX.
-		return "ERR"
-	}
-
-	s := strconv.FormatInt(index, 10) + ":"
-	return s + typ.StringOf(iv, ofmt, false)
 }
 
 func (t *TypeUnion) Marshal(zv zcode.Bytes) (interface{}, error) {

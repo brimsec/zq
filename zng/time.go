@@ -46,18 +46,6 @@ func (t *TypeOfTime) String() string {
 	return "time"
 }
 
-func (t *TypeOfTime) StringOf(zv zcode.Bytes, _ OutFmt, _ bool) string {
-	ts, err := DecodeTime(zv)
-	if err != nil {
-		return badZng(err, t, zv)
-	}
-	// This format of a fractional second is used by zeek in logs.
-	// It uses enough precision to fully represent the 64-bit ns
-	// accuracy of a nano.Ts.  Such values cannot be representd by
-	// float64's without loss of the least significant digits of ns,
-	return ts.StringFloat()
-}
-
 func (t *TypeOfTime) Marshal(zv zcode.Bytes) (interface{}, error) {
 	ts, err := DecodeTime(zv)
 	if err != nil {

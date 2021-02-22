@@ -24,29 +24,17 @@ var (
 	ErrEnumIndex  = errors.New("enum index out of bounds")
 )
 
-// The fmt paramter passed to Type.StringOf() must be one of the following
-// values, these are used to inform the formatter how containers should be
-// encoded and what sort of escaping should be applied to string types.
-type OutFmt int
-
-const (
-	OutFormatUnescaped = OutFmt(iota)
-	OutFormatZNG
-	OutFormatZeek
-	OutFormatZeekAscii
-)
-
 // A Type is an interface presented by a zeek type.
 // Types can be used to infer type compatibility and create new values
 // of the underlying type.
 type Type interface {
 	// String returns the name of the type as defined in the ZNG spec.
-	String() string
+	// String() string
 	// StringOf formats an arbitrary value of this type encoded as zcode.
 	// The fmt parameter controls output formatting.  The inContainer
 	// parameter indicates if this value is inside a set or vector
 	// (which is needed to correctly implement  zeek log escaping rules).
-	StringOf(zv zcode.Bytes, fmt OutFmt, inContainer bool) string
+	//StringOf(zv zcode.Bytes, fmt OutFmt, inContainer bool) string
 	// Marshal is used from Value.MarshalJSON(), it should turn an
 	// arbitrary value of this type encoded as zcode into something
 	// suitable for passing to json.Marshal()
@@ -54,7 +42,7 @@ type Type interface {
 	// Parse transforms a string representation of the type to its zval
 	// encoding.  The string input is provided as a byte slice for
 	// efficiency given the common use cases in the system.
-	Parse([]byte) (zcode.Bytes, error)
+	//Parse([]byte) (zcode.Bytes, error)
 	// ID returns a unique (per resolver.Context) identifier that
 	// represents this type.  For an aliased type, this identifier
 	// represents the actual underlying type and not the alias itself.

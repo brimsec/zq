@@ -1,4 +1,4 @@
-package zng
+package tzngio
 
 import (
 	"errors"
@@ -166,4 +166,75 @@ func ParseContainer(typ Type, in []byte) (zcode.Bytes, error) {
 		return nil, err
 	}
 	return p.Bytes().ContainerBody()
+}
+
+//XXX
+func (t *TypeMap) Parse(in []byte) (zcode.Bytes, error) {
+	return ParseContainer(t, in)
+}
+
+func (t *TypeRecord) Parse(in []byte) (zcode.Bytes, error) {
+	return ParseContainer(t, in)
+}
+
+func (t *TypeSet) Parse(in []byte) (zcode.Bytes, error) {
+	return ParseContainer(t, in)
+}
+
+func (t *TypeUnion) Parse(in []byte) (zcode.Bytes, error) {
+	return ParseContainer(t, in)
+}
+
+//XXX this literal stuff is going away replace with ast.Value
+
+// Parse translates an ast.Literal into a Value.
+// This currently supports only primitive literals.
+func Parse(v ast.Literal) (Value, error) {
+	t := LookupPrimitive(v.Type)
+	if t == nil {
+		return Value{}, fmt.Errorf("unsupported type %s in ast.Literal", v.Type)
+	}
+	zv, err := t.Parse([]byte(v.Value))
+	if err != nil {
+		return Value{}, err
+	}
+	return Value{t, zv}, nil
+}
+
+func parseContainer(containerType Type, elementType Type, b zcode.Bytes) ([]Value, error) {
+	// We start out with a pointer instead of nil so that empty sets and arrays
+	// are properly encoded etc., e.g., by json.Marshal.
+	vals := []Value{}
+	for it := b.Iter(); !it.Done(); {
+		zv, _, err := it.Next()
+		if err != nil {
+			return nil, fmt.Errorf("parsing %s element %q: %w", containerType.String(), zv, err)
+		}
+		vals = append(vals, Value{elementType, zv})
+	}
+	return vals, nil
+}
+
+func (t *TypeArray) Decode(zv zcode.Bytes) ([]Value, error) {
+	if zv == nil {
+		return nil, nil
+	}
+	return parseContainer(t, t.Type, zv)
+}
+
+func (t *TypeSet) Decode(zv zcode.Bytes) ([]Value, error) {
+	if zv == nil {
+		return nil, nil
+	}
+	return parseContainer(t, t.Type, zv)
+}
+
+func (t *TypeOfBstring) Parse(in []byte) (zcode.Bytes, error) {
+	normalized := norm.NFC.Bytes(UnescapeBstring(in))
+	return normalized, nil
+}
+
+func (t *TypeOfString) Parse(in []byte) (zcode.Bytes, error) {
+	normalized := norm.NFC.Bytes(UnescapeString(in))
+	return normalized, nil
 }

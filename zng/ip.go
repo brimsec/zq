@@ -49,14 +49,6 @@ func (t *TypeOfIP) String() string {
 	return "ip"
 }
 
-func (t *TypeOfIP) StringOf(zv zcode.Bytes, _ OutFmt, _ bool) string {
-	ip, err := DecodeIP(zv)
-	if err != nil {
-		return badZng(err, t, zv)
-	}
-	return ip.String()
-}
-
 func (t *TypeOfIP) Marshal(zv zcode.Bytes) (interface{}, error) {
 	ip, err := DecodeIP(zv)
 	if err != nil {

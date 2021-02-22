@@ -2,7 +2,6 @@ package zng
 
 import (
 	"strconv"
-	"strings"
 	"unicode"
 )
 
@@ -35,15 +34,4 @@ func IsTypeName(s string) bool {
 	}
 	_, err := strconv.ParseInt(s, 10, 64)
 	return err != nil
-}
-
-func FormatName(name string) string {
-	if IsIdentifier(name) {
-		return name
-	}
-	var b strings.Builder
-	b.WriteRune('[')
-	b.WriteString(TypeString.StringOf(EncodeString(name), OutFormatZNG, false))
-	b.WriteRune(']')
-	return b.String()
 }

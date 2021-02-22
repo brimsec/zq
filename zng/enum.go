@@ -2,7 +2,6 @@ package zng
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/brimsec/zq/zcode"
@@ -38,23 +37,8 @@ func (t *TypeEnum) Element(index int) (*Element, error) {
 	return &t.Elements[index], nil
 }
 
-func (t *TypeEnum) String() string {
-	typ := t.Type
-	var out []string
-	for _, e := range t.Elements {
-		name := FormatName(e.Name)
-		val := typ.StringOf(e.Value, OutFormatZNG, false)
-		out = append(out, fmt.Sprintf("%s:[%s]", name, val))
-	}
-	return fmt.Sprintf("enum[%s,%s]", typ, strings.Join(out, ","))
-}
-
 func (t *TypeEnum) Parse(in []byte) (zcode.Bytes, error) {
 	return TypeUint64.Parse(in)
-}
-
-func (t *TypeEnum) StringOf(zv zcode.Bytes, fmt OutFmt, _ bool) string {
-	return TypeUint64.StringOf(zv, fmt, false)
 }
 
 func (t *TypeEnum) Marshal(zv zcode.Bytes) (interface{}, error) {

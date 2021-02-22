@@ -53,22 +53,6 @@ func DecodeUint(zv zcode.Bytes) (uint64, error) {
 	return zcode.DecodeCountedUvarint(zv), nil
 }
 
-func stringOfInt(zv zcode.Bytes, t Type) string {
-	i, err := DecodeInt(zv)
-	if err != nil {
-		return badZng(err, t, zv)
-	}
-	return strconv.FormatInt(i, 10)
-}
-
-func stringOfUint(zv zcode.Bytes, t Type) string {
-	i, err := DecodeUint(zv)
-	if err != nil {
-		return badZng(err, t, zv)
-	}
-	return strconv.FormatUint(i, 10)
-}
-
 type TypeOfInt8 struct{}
 
 func (t *TypeOfInt8) ID() int {
@@ -85,14 +69,6 @@ func (t *TypeOfInt8) Parse(in []byte) (zcode.Bytes, error) {
 		return nil, err
 	}
 	return EncodeInt(int64(b)), nil
-}
-
-func (t *TypeOfInt8) StringOf(zv zcode.Bytes, _ OutFmt, _ bool) string {
-	b, err := DecodeInt(zv)
-	if err != nil {
-		return badZng(err, t, zv)
-	}
-	return strconv.FormatInt(int64(b), 10)
 }
 
 func (t *TypeOfInt8) Marshal(zv zcode.Bytes) (interface{}, error) {
@@ -129,14 +105,6 @@ func (t *TypeOfUint8) Parse(in []byte) (zcode.Bytes, error) {
 	return EncodeUint(uint64(b)), nil
 }
 
-func (t *TypeOfUint8) StringOf(zv zcode.Bytes, _ OutFmt, _ bool) string {
-	b, err := DecodeUint(zv)
-	if err != nil {
-		return badZng(err, t, zv)
-	}
-	return strconv.FormatUint(uint64(b), 10)
-}
-
 func (t *TypeOfUint8) Marshal(zv zcode.Bytes) (interface{}, error) {
 	return DecodeUint(zv)
 }
@@ -169,10 +137,6 @@ func (t *TypeOfInt16) Parse(in []byte) (zcode.Bytes, error) {
 		return nil, err
 	}
 	return EncodeInt(int64(i)), nil
-}
-
-func (t *TypeOfInt16) StringOf(zv zcode.Bytes, _ OutFmt, _ bool) string {
-	return stringOfInt(zv, t)
 }
 
 func (t *TypeOfInt16) Marshal(zv zcode.Bytes) (interface{}, error) {
@@ -209,10 +173,6 @@ func (t *TypeOfUint16) Parse(in []byte) (zcode.Bytes, error) {
 	return EncodeUint(uint64(i)), nil
 }
 
-func (t *TypeOfUint16) StringOf(zv zcode.Bytes, _ OutFmt, _ bool) string {
-	return stringOfUint(zv, t)
-}
-
 func (t *TypeOfUint16) Marshal(zv zcode.Bytes) (interface{}, error) {
 	return DecodeUint(zv)
 }
@@ -245,10 +205,6 @@ func (t *TypeOfInt32) Parse(in []byte) (zcode.Bytes, error) {
 		return nil, err
 	}
 	return EncodeInt(int64(i)), nil
-}
-
-func (t *TypeOfInt32) StringOf(zv zcode.Bytes, _ OutFmt, _ bool) string {
-	return stringOfInt(zv, t)
 }
 
 func (t *TypeOfInt32) Marshal(zv zcode.Bytes) (interface{}, error) {
@@ -285,10 +241,6 @@ func (t *TypeOfUint32) Parse(in []byte) (zcode.Bytes, error) {
 	return EncodeUint(uint64(i)), nil
 }
 
-func (t *TypeOfUint32) StringOf(zv zcode.Bytes, _ OutFmt, _ bool) string {
-	return stringOfUint(zv, t)
-}
-
 func (t *TypeOfUint32) Marshal(zv zcode.Bytes) (interface{}, error) {
 	return DecodeUint(zv)
 }
@@ -323,10 +275,6 @@ func (t *TypeOfInt64) Parse(in []byte) (zcode.Bytes, error) {
 	return EncodeInt(int64(i)), nil
 }
 
-func (t *TypeOfInt64) StringOf(zv zcode.Bytes, _ OutFmt, _ bool) string {
-	return stringOfInt(zv, t)
-}
-
 func (t *TypeOfInt64) Marshal(zv zcode.Bytes) (interface{}, error) {
 	return DecodeInt(zv)
 }
@@ -359,10 +307,6 @@ func (t *TypeOfUint64) Parse(in []byte) (zcode.Bytes, error) {
 		return nil, err
 	}
 	return EncodeUint(uint64(i)), nil
-}
-
-func (t *TypeOfUint64) StringOf(zv zcode.Bytes, _ OutFmt, _ bool) string {
-	return stringOfUint(zv, t)
 }
 
 func (t *TypeOfUint64) Marshal(zv zcode.Bytes) (interface{}, error) {

@@ -1,14 +1,10 @@
 package zng
 
 import (
-	"bytes"
 	"fmt"
 	"strconv"
-	"unicode"
-	"unicode/utf8"
 
 	"github.com/brimsec/zq/zcode"
-	"golang.org/x/text/unicode/norm"
 )
 
 type TypeOfString struct{}
@@ -23,11 +19,6 @@ func EncodeString(s string) zcode.Bytes {
 
 func DecodeString(zv zcode.Bytes) (string, error) {
 	return string(zv), nil
-}
-
-func (t *TypeOfString) Parse(in []byte) (zcode.Bytes, error) {
-	normalized := norm.NFC.Bytes(UnescapeString(in))
-	return normalized, nil
 }
 
 func (t *TypeOfString) ID() int {
@@ -49,36 +40,9 @@ func uescape(r rune) []byte {
 	return []byte(s)
 }
 
-func (t *TypeOfString) StringOf(zv zcode.Bytes, fmt OutFmt, inContainer bool) string {
-	if fmt != OutFormatUnescaped && bytes.Equal(zv, []byte{'-'}) {
-		return "\\u002d"
-	}
-
-	var out []byte
-	var start int
-	for i := 0; i < len(zv); {
-		r, l := utf8.DecodeRune(zv[i:])
-		if fmt != OutFormatUnescaped && r == '\\' {
-			out = append(out, zv[start:i]...)
-			out = append(out, '\\', '\\')
-			i++
-			start = i
-			continue
-		}
-		if !unicode.IsPrint(r) || ShouldEscape(r, fmt, i, inContainer) {
-			out = append(out, zv[start:i]...)
-			out = append(out, uescape(r)...)
-			i += l
-			start = i
-		} else {
-			i += l
-		}
-	}
-	return string(append(out, zv[start:len(zv)]...))
-}
-
 func (t *TypeOfString) Marshal(zv zcode.Bytes) (interface{}, error) {
-	return t.StringOf(zv, OutFormatUnescaped, false), nil
+	//return t.StringOf(zv, OutFormatUnescaped, false), nil
+	return nil, nil
 }
 
 func (t *TypeOfString) ZSON() string {

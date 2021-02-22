@@ -55,7 +55,7 @@ func checkKind(name string, typ Type, body zcode.Bytes, container bool) error {
 	} else {
 		err = ErrNotPrimitive
 	}
-	return &RecordTypeError{Name: name, Type: typ.String(), Err: err}
+	return &RecordTypeError{Name: name, Type: typ.ZSON(), Err: err}
 }
 
 func walkRecord(typ *TypeRecord, body zcode.Bytes, visit Visitor) error {
@@ -65,7 +65,7 @@ func walkRecord(typ *TypeRecord, body zcode.Bytes, visit Visitor) error {
 	it := body.Iter()
 	for _, col := range typ.Columns {
 		if it.Done() {
-			return &RecordTypeError{Name: string(col.Name), Type: col.Type.String(), Err: ErrMissingField}
+			return &RecordTypeError{Name: string(col.Name), Type: col.Type.ZSON(), Err: ErrMissingField}
 		}
 		body, container, err := it.Next()
 		if err != nil {
@@ -108,7 +108,7 @@ func walkUnion(typ *TypeUnion, body zcode.Bytes, visit Visitor) error {
 	}
 	if len(body) == 0 {
 		err := errors.New("union as empty body")
-		return &RecordTypeError{Name: "<union type>", Type: typ.String(), Err: err}
+		return &RecordTypeError{Name: "<union type>", Type: typ.ZSON(), Err: err}
 	}
 	it := body.Iter()
 	v, container, err := it.Next()
@@ -132,7 +132,7 @@ func walkUnion(typ *TypeUnion, body zcode.Bytes, visit Visitor) error {
 	}
 	if !it.Done() {
 		err := errors.New("union value container has more than two items")
-		return &RecordTypeError{Name: "<union>", Type: typ.String(), Err: err}
+		return &RecordTypeError{Name: "<union>", Type: typ.ZSON(), Err: err}
 	}
 	if err := checkKind("<union body>", inner, body, container); err != nil {
 		return err

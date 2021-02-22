@@ -52,17 +52,6 @@ func (t *TypeOfBool) String() string {
 	return "bool"
 }
 
-func (t *TypeOfBool) StringOf(zv zcode.Bytes, _ OutFmt, _ bool) string {
-	b, err := DecodeBool(zv)
-	if err != nil {
-		return badZng(err, t, zv)
-	}
-	if b {
-		return "T"
-	}
-	return "F"
-}
-
 func (t *TypeOfBool) Marshal(zv zcode.Bytes) (interface{}, error) {
 	return DecodeBool(zv)
 }

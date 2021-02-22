@@ -165,6 +165,18 @@ func (b *Builder) buildPrimitive(val *Primitive) error {
 	return fmt.Errorf("unknown primitive: %T", val.Type)
 }
 
+func unhex(b byte) byte {
+	switch {
+	case '0' <= b && b <= '9':
+		return b - '0'
+	case 'a' <= b && b <= 'f':
+		return b - 'a' + 10
+	case 'A' <= b && b <= 'F':
+		return b - 'A' + 10
+	}
+	return 255
+}
+
 func unescapeHex(in []byte) []byte {
 	if bytes.IndexByte(in, '\\') < 0 {
 		return in
@@ -174,8 +186,8 @@ func unescapeHex(in []byte) []byte {
 	for i < len(in) {
 		c := in[i]
 		if c == '\\' && len(in[i:]) >= 4 && in[i+1] == 'x' {
-			v1 := zng.Unhex(in[i+2])
-			v2 := zng.Unhex(in[i+3])
+			v1 := unhex(in[i+2])
+			v2 := unhex(in[i+3])
 			// This is undefined behavior for non hex \x chars.
 			c = v1<<4 | v2
 			i += 4

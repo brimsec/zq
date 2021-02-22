@@ -61,5 +61,5 @@ func TestZsonBuilder(t *testing.T) {
 	rec := zng.NewRecord(zv.Type.(*zng.TypeRecord), zv.Bytes)
 	zv, err = rec.Access("a")
 	require.NoError(t, err)
-	assert.Equal(t, "array[string]: [(31)(32)(33)]", zv.String())
+	assert.Equal(t, "[string]: [(31)(32)(33)]", zv.String())
 }

@@ -23,10 +23,6 @@ func (t *TypeOfNull) String() string {
 	return "null"
 }
 
-func (t *TypeOfNull) StringOf(zv zcode.Bytes, _ OutFmt, _ bool) string {
-	return "-"
-}
-
 func (t *TypeOfNull) Marshal(zv zcode.Bytes) (interface{}, error) {
 	return nil, nil
 }

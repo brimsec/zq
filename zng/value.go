@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/brimsec/zq/compiler/ast"
 	"github.com/brimsec/zq/zcode"
 )
 
@@ -18,34 +17,6 @@ var (
 type Value struct {
 	Type  Type
 	Bytes zcode.Bytes
-}
-
-// Parse translates an ast.Literal into a Value.
-// This currently supports only primitive literals.
-func Parse(v ast.Literal) (Value, error) {
-	t := LookupPrimitive(v.Type)
-	if t == nil {
-		return Value{}, fmt.Errorf("unsupported type %s in ast.Literal", v.Type)
-	}
-	zv, err := t.Parse([]byte(v.Value))
-	if err != nil {
-		return Value{}, err
-	}
-	return Value{t, zv}, nil
-}
-
-func parseContainer(containerType Type, elementType Type, b zcode.Bytes) ([]Value, error) {
-	// We start out with a pointer instead of nil so that empty sets and arrays
-	// are properly encoded etc., e.g., by json.Marshal.
-	vals := []Value{}
-	for it := b.Iter(); !it.Done(); {
-		zv, _, err := it.Next()
-		if err != nil {
-			return nil, fmt.Errorf("parsing %s element %q: %w", containerType.String(), zv, err)
-		}
-		vals = append(vals, Value{elementType, zv})
-	}
-	return vals, nil
 }
 
 func (v Value) IsContainer() bool {
@@ -67,18 +38,11 @@ func badZng(err error, t Type, zv zcode.Bytes) string {
 	return fmt.Sprintf("<ZNG-ERR type %s [%s]: %s>", t, zv, err)
 }
 
-func (v Value) Format(fmt OutFmt) string {
-	if v.Bytes == nil {
-		return "-"
-	}
-	return v.Type.StringOf(v.Bytes, fmt, false)
-}
-
 // String implements fmt.Stringer.String.  It should only be used for logs,
 // debugging, etc.  Any caller that requires a specific output format should use
 // FormatAs() instead.
 func (v Value) String() string {
-	return fmt.Sprintf("%s: %s", v.Type, v.Encode(nil))
+	return fmt.Sprintf("%s: %s", v.Type.ZSON(), v.Encode(nil))
 }
 
 // Encode appends the ZNG representation of this value to the passed in

@@ -2,8 +2,6 @@ package zng
 
 import (
 	"errors"
-	"fmt"
-	"strings"
 
 	"github.com/brimsec/zq/zcode"
 )
@@ -51,6 +49,8 @@ func (b *Builder) Build(zvs ...zcode.Bytes) *Record {
 	b.rec.Raw = b.Bytes()
 	return &b.rec
 }
+
+/*
 
 // Parse creates a record from the a text representation of each leaf value
 // in the DFS traversal of the record type.  If there aren't enough inputs values
@@ -196,6 +196,7 @@ func (b *Builder) parseSet(typ *TypeSet, in string) error {
 	}
 	return nil
 }
+*/
 
 func (b *Builder) appendUnset(typ Type) {
 	if IsContainerType(typ) {
@@ -205,6 +206,7 @@ func (b *Builder) appendUnset(typ Type) {
 	}
 }
 
+/*
 func (b *Builder) parsePrimitive(typ Type, val string) error {
 	body, err := typ.Parse([]byte(val))
 	if err != nil {
@@ -213,3 +215,4 @@ func (b *Builder) parsePrimitive(typ Type, val string) error {
 	b.AppendPrimitive(body)
 	return nil
 }
+*/

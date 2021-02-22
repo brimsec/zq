@@ -1,4 +1,4 @@
-package zng
+package tzngio
 
 import (
 	"testing"

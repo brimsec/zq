@@ -69,15 +69,6 @@ func (t *TypeOfNet) String() string {
 	return "net"
 }
 
-func (t *TypeOfNet) StringOf(zv zcode.Bytes, _ OutFmt, _ bool) string {
-	s, err := DecodeNet(zv)
-	if err != nil {
-		return badZng(err, t, zv)
-	}
-	ipnet := net.IPNet(*s)
-	return ipnet.String()
-}
-
 func (t *TypeOfNet) Marshal(zv zcode.Bytes) (interface{}, error) {
 	s, err := DecodeNet(zv)
 	if err != nil {

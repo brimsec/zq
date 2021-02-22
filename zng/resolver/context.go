@@ -3,7 +3,6 @@ package resolver
 import (
 	"errors"
 	"fmt"
-	"strings"
 	"sync"
 
 	"github.com/brimsec/zq/zcode"
@@ -15,6 +14,10 @@ var (
 	ErrAliasExists   = errors.New("alias exists with different type")
 )
 
+type TypeResolver interface {
+	Lookup(string) (zng.Type, error)
+}
+
 // A Context manages the mapping between small-integer descriptor identifiers
 // and zng descriptor objects, which hold the binding between an identifier
 // and a zng.Type.
@@ -23,6 +26,7 @@ type Context struct {
 	table    []zng.Type
 	lut      map[string]int
 	typedefs map[string]*zng.TypeAlias
+	resolver TypeResolver
 }
 
 func NewContext() *Context {
@@ -93,82 +97,6 @@ func (c *Context) Lookup(td int) *zng.TypeRecord {
 	return nil
 }
 
-func setKey(inner zng.Type) string {
-	return fmt.Sprintf("s%d", inner.ID())
-}
-
-func mapKey(keyType, valType zng.Type) string {
-	return fmt.Sprintf("m%d:%d", keyType.ID(), valType.ID())
-}
-
-func arrayKey(inner zng.Type) string {
-	return fmt.Sprintf("a%d", inner.ID())
-}
-
-func typeTypeKey(typ zng.Type) string {
-	return fmt.Sprintf("t%d", typ.ID())
-}
-
-func aliasKey(name string) string {
-	return fmt.Sprintf("x%s", name)
-}
-
-func enumKey(typ zng.Type, elements []zng.Element) string {
-	key := fmt.Sprintf("e:%d:", typ.ID())
-	for _, e := range elements {
-		key += fmt.Sprintf("%s:[%s];", e.Name, typ.StringOf(e.Value, zng.OutFormatZNG, false))
-	}
-	return key
-}
-
-func recordKey(columns []zng.Column) string {
-	key := "r"
-	for _, col := range columns {
-		id := col.Type.ID()
-		if alias, ok := col.Type.(*zng.TypeAlias); ok {
-			// XXX why is this here?  The id should just be the aliast ID, no need for its name
-			key += fmt.Sprintf("%s:%s/%d;", col.Name, alias.Name, alias.ID())
-			continue
-		}
-		key += fmt.Sprintf("%s:%d;", col.Name, id)
-	}
-	return key
-}
-
-func unionKey(types []zng.Type) string {
-	key := "u"
-	key += fmt.Sprintf("%d", types[0].ID())
-	for _, t := range types[1:] {
-		key += fmt.Sprintf(",%d", t.ID())
-	}
-	return key
-}
-
-func typeKey(typ zng.Type) string {
-	switch typ := typ.(type) {
-	case *zng.TypeAlias:
-		return aliasKey(typ.Name)
-	case *zng.TypeRecord:
-		return recordKey(typ.Columns)
-	case *zng.TypeArray:
-		return arrayKey(typ.Type)
-	case *zng.TypeSet:
-		return setKey(typ.Type)
-	case *zng.TypeUnion:
-		return unionKey(typ.Types)
-	case *zng.TypeEnum:
-		//XXX why not use this for everything?
-		// See Issue #1418
-		return "e:" + typ.String()
-	case *zng.TypeMap:
-		//XXX why not use this for everything?
-		// See Issue #1418
-		return "m:" + typ.String()
-	default:
-		panic("unsupported type in typeKey")
-	}
-}
-
 func (c *Context) addTypeWithLock(key string, typ zng.Type) {
 	id := len(c.table)
 	c.lut[key] = id
@@ -189,7 +117,7 @@ func (c *Context) addTypeWithLock(key string, typ zng.Type) {
 	case *zng.TypeMap:
 		typ.SetID(id)
 	default:
-		panic("unsupported type in addTypeWithLock: " + typ.String())
+		panic("unsupported type in addTypeWithLock: " + typ.ZSON())
 	}
 }
 
@@ -197,9 +125,9 @@ func (c *Context) addTypeWithLock(key string, typ zng.Type) {
 // path creating the same type.  So we take the lock then check if the
 // type already exists and if not add it while locked.
 func (c *Context) AddType(t zng.Type) zng.Type {
+	key := t.ZSON()
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	key := typeKey(t)
 	id, ok := c.lut[key]
 	if ok {
 		t = c.table[id]
@@ -226,8 +154,8 @@ func (c *Context) LookupTypeRecord(columns []zng.Column) (*zng.TypeRecord, error
 		}
 		names[col.Name] = val
 	}
-
-	key := recordKey(columns)
+	tmp := &zng.TypeRecord{Columns: columns}
+	key := tmp.ZSON()
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	id, ok := c.lut[key]
@@ -249,7 +177,8 @@ func (c *Context) MustLookupTypeRecord(columns []zng.Column) *zng.TypeRecord {
 }
 
 func (c *Context) LookupTypeSet(inner zng.Type) *zng.TypeSet {
-	key := setKey(inner)
+	tmp := &zng.TypeSet{Type: inner}
+	key := tmp.ZSON()
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	id, ok := c.lut[key]
@@ -262,7 +191,8 @@ func (c *Context) LookupTypeSet(inner zng.Type) *zng.TypeSet {
 }
 
 func (c *Context) LookupTypeMap(keyType, valType zng.Type) *zng.TypeMap {
-	key := mapKey(keyType, valType)
+	tmp := &zng.TypeMap{KeyType: keyType, ValType: valType}
+	key := tmp.ZSON()
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	id, ok := c.lut[key]
@@ -275,7 +205,8 @@ func (c *Context) LookupTypeMap(keyType, valType zng.Type) *zng.TypeMap {
 }
 
 func (c *Context) LookupTypeArray(inner zng.Type) *zng.TypeArray {
-	key := arrayKey(inner)
+	tmp := &zng.TypeArray{Type: inner}
+	key := tmp.ZSON()
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	id, ok := c.lut[key]
@@ -288,7 +219,8 @@ func (c *Context) LookupTypeArray(inner zng.Type) *zng.TypeArray {
 }
 
 func (c *Context) LookupTypeUnion(types []zng.Type) *zng.TypeUnion {
-	key := unionKey(types)
+	tmp := zng.TypeUnion{Types: types}
+	key := tmp.ZSON()
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	id, ok := c.lut[key]
@@ -301,7 +233,8 @@ func (c *Context) LookupTypeUnion(types []zng.Type) *zng.TypeUnion {
 }
 
 func (c *Context) LookupTypeEnum(typ zng.Type, elements []zng.Element) *zng.TypeEnum {
-	key := enumKey(typ, elements)
+	tmp := zng.TypeEnum{Type: typ, Elements: elements}
+	key := tmp.ZSON()
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	id, ok := c.lut[key]
@@ -320,7 +253,8 @@ func (c *Context) LookupTypeDef(name string) *zng.TypeAlias {
 }
 
 func (c *Context) LookupTypeAlias(name string, target zng.Type) (*zng.TypeAlias, error) {
-	key := aliasKey(name)
+	tmp := zng.TypeAlias{Name: name, Type: target}
+	key := tmp.ZSON()
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	id, ok := c.lut[key]
@@ -364,37 +298,20 @@ func (c *Context) AddColumns(r *zng.Record, newCols []zng.Column, vals []zng.Val
 	return zng.NewRecord(typ, zv), nil
 }
 
-func isIdChar(c byte) bool {
-	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '.'
-}
-
-func parseWord(in string) (string, string) {
-	in = strings.TrimSpace(in)
-	var off int
-	for ; off < len(in); off++ {
-		if !isIdChar(in[off]) {
-			break
-		}
-	}
-	if off == 0 {
-		return "", ""
-	}
-	return in[off:], in[:off]
-}
-
 // LookupByName returns the Type indicated by the zng type string.  The type string
 // may be a simple type like int, double, time, etc or it may be a set
 // or an array, which are recusively composed of other types.  The set and array
 // type definitions are encoded in the same fashion as zeek stores them as type field
 // in a zeek file header.  Each unique compound type object is created once and
 // interned so that pointer comparison can be used to determine type equality.
-func (c *Context) LookupByName(in string) (zng.Type, error) {
-	rest, typ, err := c.parseType(in)
-	// check if there is still text at the end of the type string...
-	if err == nil && rest != "" {
-		err = zng.ErrTypeSyntax
+
+//XXX package zson should do this now...?
+
+func (c *Context) LookupByName(zson string) (zng.Type, error) {
+	if c.resolver == nil {
+		return nil, errors.New("LookupByName cannot be called without resolver")
 	}
-	return typ, err
+	return c.resolver.Lookup(zson)
 }
 
 // Localize takes a type from another context and creates and returns that
@@ -402,337 +319,8 @@ func (c *Context) LookupByName(in string) (zng.Type, error) {
 func (c *Context) Localize(foreign zng.Type) zng.Type {
 	// there can't be an error here since the type string
 	// is generated internally
-	typ, _ := c.LookupByName(foreign.String())
+	typ, _ := c.LookupByName(foreign.ZSON())
 	return typ
-}
-
-func (c *Context) parseType(in string) (string, zng.Type, error) {
-	in = strings.TrimSpace(in)
-	c.mu.RLock()
-	id, ok := c.lut[in]
-	if ok {
-		typ := c.table[id]
-		c.mu.RUnlock()
-		return "", typ, nil
-	}
-	c.mu.RUnlock()
-	rest, word := parseWord(in)
-	if word == "" {
-		return "", nil, fmt.Errorf("unknown type: %s", in)
-	}
-	typ := zng.LookupPrimitive(word)
-	if typ != nil {
-		return rest, typ, nil
-	}
-	c.mu.RLock()
-	id, ok = c.lut[word]
-	if ok {
-		typ := c.table[id]
-		c.mu.RUnlock()
-		return rest, typ, nil
-	}
-	c.mu.RUnlock()
-	switch word {
-	case "set":
-		rest, t, err := c.parseSetTypeBody(rest)
-		if err != nil {
-			return "", nil, err
-		}
-		return rest, t, nil
-	case "array":
-		rest, t, err := c.parseArrayTypeBody(rest)
-		if err != nil {
-			return "", nil, err
-		}
-		return rest, t, nil
-	case "record":
-		rest, t, err := c.parseRecordTypeBody(rest)
-		if err != nil {
-			return "", nil, err
-		}
-		return rest, t, nil
-	case "union":
-		rest, t, err := c.parseUnionTypeBody(rest)
-		if err != nil {
-			return "", nil, err
-		}
-		return rest, t, nil
-	case "enum":
-		rest, t, err := c.parseEnumTypeBody(rest)
-		if err != nil {
-			return "", nil, err
-		}
-		return rest, t, nil
-	case "map":
-		rest, t, err := c.parseMapTypeBody(rest)
-		if err != nil {
-			return "", nil, err
-		}
-		return rest, t, nil
-	}
-	c.mu.RLock()
-	// check alias
-	id, ok = c.lut[aliasKey(word)]
-	if ok {
-		typ := c.table[id]
-		c.mu.RUnlock()
-		return rest, typ, nil
-	}
-	c.mu.RUnlock()
-	return "", nil, fmt.Errorf("unknown type: %s", word)
-}
-
-func match(in, pattern string) (string, bool) {
-	in = strings.TrimSpace(in)
-	if strings.HasPrefix(in, pattern) {
-		return in[len(pattern):], true
-	}
-	return in, false
-}
-
-// parseRecordTypeBody parses a list of record columns of the form "[field:type,...]".
-func (c *Context) parseRecordTypeBody(in string) (string, zng.Type, error) {
-	in, ok := match(in, "[")
-	if !ok {
-		return "", nil, zng.ErrTypeSyntax
-	}
-	in, ok = match(in, "]")
-	if ok {
-		typ, err := c.LookupTypeRecord([]zng.Column{})
-		if err != nil {
-			return "", nil, err
-		}
-		return in, typ, nil
-	}
-	var columns []zng.Column
-	for {
-		// at top of loop, we have to have a field def either because
-		// this is the first def or we found a comma and are expecting
-		// another one.
-		rest, col, err := c.parseColumn(in)
-		if err != nil {
-			return "", nil, err
-		}
-		columns = append(columns, col)
-		rest, ok = match(rest, ",")
-		if ok {
-			in = rest
-			continue
-		}
-		rest, ok = match(rest, "]")
-		if !ok {
-			return "", nil, zng.ErrTypeSyntax
-		}
-		typ, err := c.LookupTypeRecord(columns)
-		if err != nil {
-			return "", nil, err
-		}
-		return rest, typ, nil
-	}
-}
-
-func (c *Context) parseColumn(in string) (string, zng.Column, error) {
-	in = strings.TrimSpace(in)
-	rest, name, err := c.parseName(in)
-	if err != nil {
-		return "", zng.Column{}, err
-	}
-	var typ zng.Type
-	rest, typ, err = c.parseType(rest)
-	if err != nil {
-		return "", zng.Column{}, err
-	}
-	if typ == nil {
-		return "", zng.Column{}, zng.ErrTypeSyntax
-	}
-	return rest, zng.NewColumn(name, typ), nil
-}
-
-// parseTypeList parses a type list of the form "[type1,type2,type3]".
-func (c *Context) parseTypeList(in string) (string, []zng.Type, error) {
-	rest, ok := match(in, "[")
-	if !ok {
-		return "", nil, zng.ErrTypeSyntax
-	}
-	if rest[0] == ']' {
-		return "", nil, ErrEmptyTypeList
-	}
-	in = rest
-	var types []zng.Type
-	for {
-		// at top of loop, we have to have a field def either because
-		// this is the first def or we found a comma and are expecting
-		// another one.
-		rest, typ, err := c.parseType(in)
-		if err != nil {
-			return "", nil, err
-		}
-		types = append(types, typ)
-		rest, ok = match(rest, ",")
-		if ok {
-			in = rest
-			continue
-		}
-		rest, ok = match(rest, "]")
-		if !ok {
-			return "", nil, zng.ErrTypeSyntax
-		}
-		return rest, types, nil
-	}
-}
-
-// parseSetTypeBody parses a set type body of the form "[type]" presuming the set
-// keyword is already matched.
-func (c *Context) parseSetTypeBody(in string) (string, zng.Type, error) {
-	rest, types, err := c.parseTypeList(in)
-	if err != nil {
-		return "", nil, err
-	}
-	if len(types) > 1 {
-		return "", nil, fmt.Errorf("sets with multiple type parameters")
-	}
-	return rest, c.LookupTypeSet(types[0]), nil
-}
-
-// parseMapTypeBody parses a maap type body of the form "[type,type]" presuming
-// the map keyword is already matched.
-// The syntax is "map[keyType,valType]".
-func (c *Context) parseMapTypeBody(in string) (string, zng.Type, error) {
-	rest, types, err := c.parseTypeList(in)
-	if err != nil {
-		return "", nil, err
-	}
-	if len(types) != 2 {
-		return "", nil, fmt.Errorf("map type must have exactly two type parameters")
-	}
-	return rest, c.LookupTypeMap(types[0], types[1]), nil
-}
-
-// parseUnionTypeBody parses a set type body of the form
-// "[type1,type2,...]" presuming the union keyword is already matched.
-func (c *Context) parseUnionTypeBody(in string) (string, zng.Type, error) {
-	rest, types, err := c.parseTypeList(in)
-	if err != nil {
-		return "", nil, err
-	}
-	return rest, c.LookupTypeUnion(types), nil
-}
-
-// parse an array body type of the form "[type]"
-func (c *Context) parseArrayTypeBody(in string) (string, *zng.TypeArray, error) {
-	rest, ok := match(in, "[")
-	if !ok {
-		return "", nil, zng.ErrTypeSyntax
-	}
-	var inner zng.Type
-	var err error
-	rest, inner, err = c.parseType(rest)
-	if err != nil {
-		return "", nil, err
-	}
-	rest, ok = match(rest, "]")
-	if !ok {
-		return "", nil, zng.ErrTypeSyntax
-	}
-	return rest, c.LookupTypeArray(inner), nil
-}
-
-// parse an array body type of the form "[type]"
-func (c *Context) parseEnumTypeBody(in string) (string, *zng.TypeEnum, error) {
-	rest, ok := match(in, "[")
-	if !ok {
-		return "", nil, zng.ErrTypeSyntax
-	}
-	var typ zng.Type
-	var err error
-	rest, typ, err = c.parseType(rest)
-	if err != nil {
-		return "", nil, err
-	}
-	rest, ok = match(rest, ",")
-	if !ok {
-		return "", nil, zng.ErrTypeSyntax
-	}
-	var elements []zng.Element
-	rest, elements, err = c.parseElements(typ, rest)
-	if err != nil {
-		return "", nil, err
-	}
-	return rest, c.LookupTypeEnum(typ, elements), nil
-}
-
-// Parses a name up to the colon of the form "<id>:" or "[<tzng-strinig>]:"
-func (c *Context) parseName(in string) (string, string, error) {
-	in = strings.TrimSpace(in)
-	if in, ok := match(in, "["); ok {
-		rbracket := strings.IndexByte(in, byte(']'))
-		if rbracket < 0 {
-			return "", "", zng.ErrTypeSyntax
-		}
-		name := strings.TrimSpace(in[:rbracket])
-		rest := in[rbracket+1:]
-		rest, ok := match(rest, ":")
-		if !ok {
-			return "", "", zng.ErrTypeSyntax
-		}
-		return rest, name, nil
-	}
-	colon := strings.IndexByte(in, byte(':'))
-	if colon < 0 {
-		return "", "", zng.ErrTypeSyntax
-	}
-	name := strings.TrimSpace(in[:colon])
-	if !zng.IsIdentifier(name) {
-		return "", "", zng.ErrTypeSyntax
-	}
-	return in[colon+1:], name, nil
-}
-
-func (c *Context) parseElements(typ zng.Type, in string) (string, []zng.Element, error) {
-	var elems []zng.Element
-	for {
-		// at top of loop, we have to have a element def either because
-		// this is the first def or we found a comma and are expecting
-		// another one.
-		rest, elem, err := c.parseElement(typ, in)
-		if err != nil {
-			return "", nil, err
-		}
-		elems = append(elems, elem)
-		var ok bool
-		rest, ok = match(rest, ",")
-		if ok {
-			in = rest
-			continue
-		}
-		rest, ok = match(rest, "]")
-		if !ok {
-			return "", nil, zng.ErrTypeSyntax
-		}
-		return rest, elems, nil
-	}
-}
-
-func (c *Context) parseElement(typ zng.Type, in string) (string, zng.Element, error) {
-	rest, name, err := c.parseName(in)
-	if err != nil {
-		return "", zng.Element{}, err
-	}
-	rest, ok := match(rest, "[")
-	if !ok {
-		return "", zng.Element{}, err
-	}
-	rbracket := strings.IndexByte(rest, byte(']'))
-	if rbracket < 0 {
-		return "", zng.Element{}, zng.ErrTypeSyntax
-	}
-	val := rest[:rbracket]
-	zv, err := typ.Parse([]byte(val))
-	if err != nil {
-		return "", zng.Element{}, zng.ErrTypeSyntax
-	}
-	rest = rest[rbracket+1:]
-	return rest, zng.Element{name, zv}, nil
 }
 
 func (c *Context) TranslateType(ext zng.Type) (zng.Type, error) {

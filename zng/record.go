@@ -25,20 +25,12 @@ func NewTypeRecord(id int, columns []Column) *TypeRecord {
 	return r
 }
 
-func TypeRecordString(columns []Column) string {
-	return ColumnString("record[", columns, "]")
-}
-
 func (t *TypeRecord) ID() int {
 	return t.id
 }
 
 func (t *TypeRecord) SetID(id int) {
 	t.id = id
-}
-
-func (t *TypeRecord) String() string {
-	return TypeRecordString(t.Columns)
 }
 
 //XXX we shouldn't need this... tests are using it
@@ -59,48 +51,6 @@ func (t *TypeRecord) Decode(zv zcode.Bytes) ([]Value, error) {
 		vals = append(vals, v)
 	}
 	return vals, nil
-}
-
-func (t *TypeRecord) Parse(in []byte) (zcode.Bytes, error) {
-	return ParseContainer(t, in)
-}
-
-func (t *TypeRecord) StringOf(zv zcode.Bytes, fmt OutFmt, _ bool) string {
-	var b strings.Builder
-	separator := byte(',')
-	if fmt == OutFormatZNG {
-		b.WriteByte('[')
-		separator = ';'
-	}
-
-	first := true
-	it := zv.Iter()
-	for _, col := range t.Columns {
-		val, _, err := it.Next()
-		if err != nil {
-			//XXX
-			b.WriteString("ERR")
-			break
-		}
-		if first {
-			first = false
-		} else {
-			b.WriteByte(separator)
-		}
-		if val == nil {
-			b.WriteByte('-')
-		} else {
-			b.WriteString(col.Type.StringOf(val, fmt, false))
-		}
-	}
-
-	if fmt == OutFormatZNG {
-		if !first {
-			b.WriteByte(';')
-		}
-		b.WriteByte(']')
-	}
-	return b.String()
 }
 
 func (t *TypeRecord) Marshal(zv zcode.Bytes) (interface{}, error) {

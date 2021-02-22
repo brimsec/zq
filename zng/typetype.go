@@ -29,12 +29,9 @@ func (t *TypeOfType) String() string {
 	return "type"
 }
 
-func (t *TypeOfType) StringOf(zv zcode.Bytes, fmt OutFmt, inContainer bool) string {
-	return TypeString.StringOf(zv, fmt, inContainer)
-}
-
 func (t *TypeOfType) Marshal(zv zcode.Bytes) (interface{}, error) {
-	return t.StringOf(zv, OutFormatUnescaped, false), nil
+	//return t.StringOf(zv, OutFormatUnescaped, false), nil
+	return nil, nil
 }
 
 func (t *TypeOfType) ZSON() string {
