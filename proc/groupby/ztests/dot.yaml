@@ -1,6 +1,6 @@
 zql: 'count() by typeof(.) | sort count'
 
-output-flags: -f zson
+output-flags: -pretty=4
 
 input: |
   #0:record[x:int32,s:string]

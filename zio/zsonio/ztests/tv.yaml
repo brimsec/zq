@@ -1,6 +1,6 @@
 zql: "put t=typeof(s) | put tt=typeof(t)"
 
-output-flags: -f zson
+output-flags: -f zson -pretty=4
 
 input: |
   #foo=uint8

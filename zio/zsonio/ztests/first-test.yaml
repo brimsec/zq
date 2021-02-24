@@ -1,6 +1,6 @@
 zql: "*"
 
-output-flags: -f zson
+output-flags: -f zson -pretty=4
 
 input: |
   #port=uint16

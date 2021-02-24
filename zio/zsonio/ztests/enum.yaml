@@ -1,6 +1,6 @@
 zql: "*"
 
-output-flags: -f zson
+output-flags: -f zson -pretty=4
 
 input: |
   #0:record[flip:enum[uint8,HEADS:[0],TAILS:[1]]]
