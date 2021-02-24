@@ -87,7 +87,7 @@ func (r Reflector) UnpackMap(m interface{}) (interface{}, error) {
 	}
 	dec, err := mapstructure.NewDecoder(c)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unpack (mapstructure): %w", err)
 	}
 	return skeleton, dec.Decode(m)
 }
@@ -217,6 +217,14 @@ func convertStruct(structPtr reflect.Value, in map[string]interface{}) error {
 		case reflect.Ptr:
 			derefType := emptyFieldVal.Type().Elem()
 			if derefType.Kind() == reflect.Struct {
+				subVal, ok := o.(reflect.Value)
+				if ok {
+					if subVal.Type().AssignableTo(emptyFieldVal.Type()) {
+						emptyFieldVal.Set(subVal)
+						continue
+					}
+					return fmt.Errorf("JSON field '%s': cannot assign value of type '%s' inside of struct type '%s'", fieldName, goName(subVal), goName(val))
+				}
 				subObject, ok := o.(map[string]interface{})
 				if !ok {
 					// mapstructure can take to from here...

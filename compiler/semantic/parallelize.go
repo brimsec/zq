@@ -68,8 +68,6 @@ func liftFilter(p ast.Proc) (ast.Expression, ast.Proc) {
 	return nil, p
 }
 
-// all fields should be turned into field paths by initial semantic pass
-
 func exprToField(e ast.Expression) field.Static {
 	f, ok := e.(*ast.FieldPath)
 	if !ok {

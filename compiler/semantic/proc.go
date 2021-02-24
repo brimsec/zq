@@ -14,8 +14,6 @@ import (
 // object.  Currently, it only replaces the group-by duration with
 // a truncation call on the ts and replaces FunctionCall's in proc context
 // with either a group-by or filter-proc based on the function's name.
-// XXX In a subsequent PR, instead of modifed the AST in place we will
-// translate the AST into a flow DSL.
 func semProc(scope *Scope, p ast.Proc) (ast.Proc, error) {
 	switch p := p.(type) {
 	case *ast.GroupByProc:
@@ -282,6 +280,18 @@ func semProc(scope *Scope, p ast.Proc) (ast.Proc, error) {
 			RightKey: rightKey,
 			Clauses:  assignments,
 		}, nil
+	case *ast.SqlExpression:
+		converted, err := convertSQLProc(scope, p)
+		if err != nil {
+			return nil, err
+		}
+		// The conversion may be a group-by so we recursively
+		// invoke the transformation here...
+		if converted == nil {
+			return nil, errors.New("unable to covert SQL expression to Z")
+		}
+		return semProc(scope, converted)
+
 	case *ast.FieldCutter, *ast.TypeSplitter:
 		return p, nil
 	}

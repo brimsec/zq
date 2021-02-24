@@ -1,0 +1,21 @@
+zql: |
+  SELECT *
+  FROM fruit f
+  ORDER BY f.name
+  LIMIT 3
+
+input: |
+  {name:"apple", color:"red", flavor: "tart"} (=fruit)
+  {name:"banana", color:"yellow", flavor: "sweet"} (fruit)
+  {name:"strawberry", color:"red", flavor: "sweet"} (fruit)
+  {name:"dates", color:"brown", flavor: "sweet" } (fruit)
+  {name:"figs", color:"brown", flavor: "plain" } (fruit)
+  {name:"pomegranate", color:"red", flavor: "tart" } (fruit)
+  {name:"bob", likes: "tart", age:61} (=person)
+  {name:"joe", likes: "sweet", age:14} (person)
+  {name:"jim", likes: "plain", age:30} (person)
+
+output: |
+  {f:{name:"apple",color:"red",flavor:"tart"} (=fruit)} (=0)
+  {f:{name:"banana",color:"yellow",flavor:"sweet"}} (0)
+  {f:{name:"dates",color:"brown",flavor:"sweet"}} (0)

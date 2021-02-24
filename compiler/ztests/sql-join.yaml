@@ -1,0 +1,23 @@
+zql: |
+  SELECT p.name, f.name
+  FROM fruit f
+  LEFT JOIN person p ON f.flavor = p.likes
+
+input: |
+  {name:"apple", color:"red", flavor: "tart"} (=fruit)
+  {name:"banana", color:"yellow", flavor: "sweet"} (fruit)
+  {name:"strawberry", color:"red", flavor: "sweet"} (fruit)
+  {name:"dates", color:"brown", flavor: "sweet" } (fruit)
+  {name:"figs", color:"brown", flavor: "plain" } (fruit)
+  {name:"pomegranate", color:"red", flavor: "tart" } (fruit)
+  {name:"bob", likes: "tart", age:61} (=person)
+  {name:"joe", likes: "sweet", age:14} (person)
+  {name:"jim", likes: "plain", age:30} (person)
+
+output: |
+  {p:{name:"jim"},f:{name:"figs"}}
+  {p:{name:"joe"},f:{name:"banana"}}
+  {p:{name:"joe"},f:{name:"strawberry"}}
+  {p:{name:"joe"},f:{name:"dates"}}
+  {p:{name:"bob"},f:{name:"apple"}}
+  {p:{name:"bob"},f:{name:"pomegranate"}}

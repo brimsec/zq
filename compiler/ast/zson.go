@@ -75,13 +75,14 @@ type (
 	}
 )
 
-func (*Primitive) anyNode() {}
-func (*Record) anyNode()    {}
-func (*Array) anyNode()     {}
-func (*Set) anyNode()       {}
-func (*Enum) anyNode()      {}
-func (*Map) anyNode()       {}
-func (*TypeValue) anyNode() {}
+func (*Primitive) anyNode()  {}
+func (*Record) anyNode()     {}
+func (*Array) anyNode()      {}
+func (*Set) anyNode()        {}
+func (*Enum) anyNode()       {}
+func (*Map) anyNode()        {}
+func (*TypeValue) anyNode()  {}
+func (*TypeValue) exprNode() {}
 
 type Type interface {
 	typeNode()

@@ -85,10 +85,14 @@ func semExpr(scope *Scope, e ast.Expression) (ast.Expression, error) {
 			Expr: expr,
 			Type: e.Type, //XXX
 		}, nil
-	case *ast.TypeExpr:
-		return &ast.TypeExpr{
-			Op:   "TypeExpr",
-			Type: e.Type, //XXX
+	case *ast.TypeValue:
+		tv, err := semType(scope, e.Value)
+		if err != nil {
+			return nil, err
+		}
+		return &ast.TypeValue{
+			Op:    "TypeValue",
+			Value: tv,
 		}, nil
 	case *ast.Reducer:
 		expr, err := semExprNullable(scope, e.Expr)

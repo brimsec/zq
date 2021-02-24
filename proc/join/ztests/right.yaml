@@ -1,0 +1,43 @@
+script: |
+  zq -P -f tzng 'split ( => filter * => filter * ) | right join a=b hit=sb | sort b' A.tzng B.tzng
+  echo ===
+  zq -P -f tzng 'right join a=b hit=sb | sort b' A.tzng B.tzng
+
+inputs:
+  - name: A.tzng
+    data: |
+      #0:record[a:int32,sa:string]
+      0:[10;a0;]
+      0:[15;a8;]
+      0:[20;a1;]
+      0:[25;a7;]
+      0:[30;a2;]
+      0:[35;a6;]
+      0:[40;a3;]
+      0:[45;a5;]
+      0:[50;a4;]
+  - name: B.tzng
+    data: |
+      #0:record[b:int32,sb:string]
+      0:[20;b20;]
+      0:[20;b20v2;]
+      0:[40;b40;]
+      0:[40;b40v2;]
+      0:[60;b60;]
+
+outputs:
+  - name: stdout
+    data: |
+      #0:record[b:int32,sb:string]
+      0:[20;b20;]
+      0:[20;b20v2;]
+      0:[40;b40;]
+      0:[40;b40v2;]
+      0:[60;b60;]
+      ===
+      #0:record[b:int32,sb:string]
+      0:[20;b20;]
+      0:[20;b20v2;]
+      0:[40;b40;]
+      0:[40;b40v2;]
+      0:[60;b60;]

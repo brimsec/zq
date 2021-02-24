@@ -82,8 +82,8 @@ func compileExpr(zctx *resolver.Context, scope *Scope, e ast.Expression) (expr.E
 		return compileCall(zctx, scope, *e)
 	case *ast.CastExpression:
 		return compileCast(zctx, scope, *e)
-	case *ast.TypeExpr:
-		return compileTypeExpr(zctx, scope, *e)
+	case *ast.TypeValue:
+		return compileTypeValue(zctx, scope, *e)
 	case *ast.SeqExpr:
 		return compileSeqExpr(zctx, scope, e)
 	default:
@@ -439,8 +439,8 @@ func compileExprs(zctx *resolver.Context, scope *Scope, in []ast.Expression) ([]
 	return out, nil
 }
 
-func compileTypeExpr(zctx *resolver.Context, scope *Scope, t ast.TypeExpr) (expr.Evaluator, error) {
-	if typ, ok := t.Type.(*ast.TypeName); ok {
+func compileTypeValue(zctx *resolver.Context, scope *Scope, t ast.TypeValue) (expr.Evaluator, error) {
+	if typ, ok := t.Value.(*ast.TypeName); ok {
 		// We currently support dynamic type names only for
 		// top-level type names.  By dynamic, we mean typedefs that
 		// come from the data instead of the Z.  For dynamic type
@@ -450,7 +450,7 @@ func compileTypeExpr(zctx *resolver.Context, scope *Scope, t ast.TypeExpr) (expr
 		// See issue #2182.
 		return expr.NewTypeFunc(zctx, typ.Name), nil
 	}
-	typ, err := zson.TranslateType(zctx.Context, t.Type)
+	typ, err := zson.TranslateType(zctx.Context, t.Value)
 	if err != nil {
 		return nil, err
 	}

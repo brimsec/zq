@@ -104,6 +104,10 @@ func (c *canon) expr(e ast.Expression, paren bool) {
 		c.fieldpath(e.Name)
 	case *ast.Ref:
 		c.write("%s", e.Name)
+	case *ast.TypeValue:
+		c.write("type(")
+		c.typ(e.Value)
+		c.write(")")
 	default:
 		c.open("(unknown expr %T)", e)
 		c.close()

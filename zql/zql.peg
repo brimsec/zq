@@ -215,7 +215,8 @@ GlobPart
 Stars = "*"+ { RETURN(TEXT) }
 
 SearchGuard
-  = AndToken
+  = SqlTokenSentinels
+  / AndToken
   / OrToken
   / NotToken
   / InToken
@@ -334,6 +335,8 @@ Reducers
       RETURN(result)
     }
 
+/// === Operators (aka Procs) ===
+
 Operator
   = SortProc
   / TopProc
@@ -349,6 +352,7 @@ Operator
   / FuseProc
   / JoinProc
   / TasteProc
+  / SqlProc
 
 SortProc
   = "sort"i args:SortArgs list:(_ l:Exprs { RETURN(l) })? {
@@ -496,6 +500,8 @@ TasteProc
 TasteExpr
   = _ lval:Lval { RETURN(lval)}
   / "" { RETURN(MAP("op":"RootRecord")) }
+
+/// === Expressions ===
 
 Lval = DerefExpr
 
@@ -686,6 +692,141 @@ Primary
   = Literal
   / "(" __ expr:Expr __ ")" { RETURN(expr) }
 
+
+/// === SQL Compat ===
+
+SqlProc
+  = selection:SqlSelect
+    from:SqlFrom
+    joins:SqlJoins
+    where:SqlWhere
+    groupby:SqlGroupBy
+    having:SqlHaving
+    orderby:SqlOrderBy
+    limit:SqlLimit
+    {
+      RETURN(MAP(
+        "op": "SqlExpr",
+        "select": selection,
+        "from": from,
+        "joins": joins,
+        "where": where,
+        "groupby": groupby,
+        "having": having,
+        "orderby": orderby,
+        "limit": limit ))
+    }
+
+// XXX note having generic expressions here can be confusing because Z
+// boolean uses "=" so "select x=foo" says to select the boolean expression,
+// but this should be rejected by the compiler as a semantic problem.
+// Also, semicolons seem to be a thing.  For now, no semicolons.
+
+SqlSelect
+  = SELECT _ "*" { RETURN(NULL) }
+  / SELECT _ assignments:SqlAssignments { RETURN(assignments) }
+
+SqlAssignment
+  = rhs:Expr _ AS _ lhs:Lval { RETURN(MAP("op": "Assignment", "lhs": lhs, "rhs": rhs)) }
+  / expr:Expr { RETURN(MAP("op": "Assignment", "lhs": NULL, "rhs": expr)) }
+
+SqlAssignments
+  = first:SqlAssignment rest:(__ "," __ expr:SqlAssignment { RETURN(expr) })* {
+      RETURN(PREPEND(first, rest))
+    }
+
+SqlFrom
+  = _ FROM _ table:SqlTable alias:SqlAlias {
+      RETURN(MAP("table": table, "alias": alias))
+    }
+  / "" { RETURN(NULL) }
+
+SqlAlias
+  = _ id:Lval { RETURN(id) }
+  / "" { RETURN(NULL) }
+
+//XXX for now, a "table" is simply type expression (string) that selects records
+// all from the same schema.  We can add space names and type variables later.
+// For example, the runtime could load all the known record typedefs from a space
+// into the global scope so that table names can refer to these "named schemas".
+SqlTable
+  = Expr
+  / "*" { RETURN(MAP("op": "Literal", "type":"bool", "value":"true"))}
+
+SqlJoins
+  = first:SqlJoin rest:(join:SqlJoin { RETURN(join) })* {
+      RETURN(PREPEND(first, rest))
+    }
+  / "" { RETURN(NULL) }
+
+// XXX For now, an ON clause is required with JOIN.  No implied cross joins.
+// Actually, no cross-joins at all right now.
+SqlJoin
+  = kind:SqlJoinKind _ JOIN _ table:SqlTable alias:SqlAlias _ ON _ leftKey:JoinKey __ "=" __ rightKey:JoinKey {
+      RETURN(MAP(
+        "kind": kind,
+        "table": table,
+        "left_key": leftKey,
+        "right_key": rightKey,
+        "alias": alias))
+    }
+
+SqlJoinKind
+  = _ kind:(LEFT / RIGHT / INNER) { RETURN(kind) }
+  / ""         { RETURN("inner") }
+
+  // SqlWhere is currently a SearchBoolean though Z search shortcuts may
+// conflict with SQL preventing from automated tools (like presto or superset)
+// from issuing arbitrary WHERE expressions.
+
+SqlWhere
+  = _ WHERE _ expr:SearchBoolean { RETURN(expr) }
+  / "" { RETURN(NULL) }
+
+SqlGroupBy
+  = _ GROUP _ BY _ columns:FieldExprs { RETURN(columns) }
+  / "" { RETURN(NULL) }
+
+SqlHaving
+  = _ HAVING _ expr:SearchBoolean { RETURN(expr) }
+  / "" { RETURN(NULL) }
+
+SqlOrderBy
+  = _ ORDER _ BY _ keys:Exprs direction:SqlDirection {
+      RETURN(MAP("op": "SqlOrderBy", "keys": keys, "direction":direction))
+    }
+  / "" { RETURN(NULL) }
+
+SqlDirection
+  = _ dir:(ASC / DESC) { RETURN(dir) }
+  / "" { RETURN("asc") }
+
+SqlLimit
+  = _ LIMIT _ count:UInt { RETURN(count) }
+  / "" { RETURN(0) }
+
+SELECT = "select"i { RETURN("select") }
+AS = "as"i { RETURN("as") }
+FROM = "from"i { RETURN("from") }
+JOIN = "join"i { RETURN("join") }
+WHERE = "where"i { RETURN("where") }
+GROUP = "group"i { RETURN("group") }
+BY = ByToken
+HAVING = "having"i { RETURN("having") }
+ORDER = "order"i { RETURN("order") }
+ON = "on"i { RETURN("on") }
+LIMIT = "limit"i { RETURN("limit") }
+ASC = "asc"i { RETURN("asc") }
+DESC = "desc"i { RETURN("desc") }
+LEFT = "left"i { RETURN("left") }
+RIGHT = "right"i { RETURN("right") }
+INNER = "inner"i { RETURN("inner") }
+
+SqlTokenSentinels
+  = SELECT / AS / FROM /  JOIN / WHERE / GROUP / HAVING / ORDER / LIMIT
+
+/// === Literals ===
+
 Literal
   = TypeLiteral
   / StringLiteral
@@ -741,8 +882,8 @@ NullLiteral
   = "null"           { RETURN(MAP("op": "Literal", "type": "null", "value": "")) }
 
 TypeLiteral
-  = typ:TypeExternal {
-      RETURN(MAP("op": "TypeExpr", "type": typ))
+  = !(SqlTokenSentinels EOT) typ:TypeExternal {
+      RETURN(MAP("op": "TypeValue", "value": typ))
     }
 
 CastType
@@ -836,22 +977,22 @@ TypeFieldList
 TypeFieldListTail = __ "," __ typ:TypeField { RETURN(typ) }
 
 TypeField
-  = name:IdentifierName __ ":" __ typ:Type {
+  = name:FieldName __ ":" __ typ:Type {
       RETURN(MAP("name": name, "type": typ))
     }
+
+FieldName
+  = IdentifierName
+  / QuotedString
 
 EqualityToken
   = EqualityOperator / RelativeOperator
 
-AndToken = "and"i { RETURN("and") }
-
-OrToken = "or"i { RETURN("or") }
-
-InToken = "in"i { RETURN("in") }
-
-NotToken = "not"i { RETURN("not") }
-
-ByToken = "by"i { RETURN("by") }
+AndToken = "and"i !IdentifierRest { RETURN("and") }
+OrToken = "or"i !IdentifierRest { RETURN("or") }
+InToken = "in"i !IdentifierRest { RETURN("in") }
+NotToken = "not"i !IdentifierRest { RETURN("not") }
+ByToken = "by"i !IdentifierRest { RETURN("by") }
 
 IdentifierStart = [A-Za-z_$]
 
@@ -860,13 +1001,17 @@ IdentifierRest = IdentifierStart / [0-9]
 Identifier
   = id:IdentifierName { RETURN(MAP("op": "Identifier", "name": id)) }
 
+// XXX The SqlToken rule below lets the order() type shaper work.
+// We should double check the impact of this.  Maybe its okay because
+// the SqlTokens in SQL context are all matched straight up.
+
 IdentifierName
   = !(IdGuard !IdentifierRest) IdentifierStart IdentifierRest* {  RETURN(TEXT) }
   / "$" { RETURN(TEXT) }
   / "\\" id:IdGuard { RETURN(id) }
   // "type" is a search guard but should not be an id guard
   / "type" { RETURN(TEXT) }
-
+  / id:SqlTokenSentinels &(__ "(") { RETURN(id) }
 
 IdGuard
   = BooleanLiteral
