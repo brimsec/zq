@@ -442,7 +442,7 @@ func (z *ZTest) Run(t *testing.T, testname, path, dirname, filename string) {
 		}
 		return
 	}
-	outputFlags := append([]string{"-f=zson"}, strings.Fields(z.OutputFlags)...)
+	outputFlags := append([]string{"-f", "zson", "-pretty=0"}, strings.Fields(z.OutputFlags)...)
 	out, errout, err := runzq(path, z.ZQL, outputFlags, z.Input...)
 	if err != nil {
 		if z.errRegex != nil {
