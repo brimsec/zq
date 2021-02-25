@@ -8,6 +8,7 @@ import (
 	"github.com/brimsec/zq/zio"
 	"github.com/brimsec/zq/zio/csvio"
 	"github.com/brimsec/zq/zio/ndjsonio"
+	"github.com/brimsec/zq/zio/parquetio"
 	"github.com/brimsec/zq/zio/tableio"
 	"github.com/brimsec/zq/zio/textio"
 	"github.com/brimsec/zq/zio/tzngio"
@@ -62,6 +63,8 @@ func LookupWriter(w io.WriteCloser, zctx *resolver.Context, opts zio.WriterOpts)
 			Fuse:       opts.CSVFuse,
 			UTF8:       opts.UTF8,
 		}), nil
+	case "parquet":
+		return parquetio.NewWriter(w), nil
 	default:
 		return nil, fmt.Errorf("unknown format: %s", opts.Format)
 	}

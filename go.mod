@@ -5,11 +5,12 @@ go 1.15
 require (
 	github.com/alecthomas/units v0.0.0-20190717042225-c3de453c63f4
 	github.com/alexbrainman/ps v0.0.0-20171229230509-b3e1b4a15894
-	github.com/apache/thrift v0.0.0-20181112125854-24918abba929
+	github.com/apache/thrift v0.13.0
 	github.com/aws/aws-sdk-go v1.36.17
 	github.com/axiomhq/hyperloglog v0.0.0-20191112132149-a4c4c47bc57f
 	github.com/buger/jsonparser v0.0.0-20191004114745-ee4c978eae7e
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
+	github.com/fraugster/parquet-go v0.3.0
 	github.com/fsnotify/fsnotify v1.4.9
 	github.com/go-pg/pg/v10 v10.7.3
 	github.com/go-redis/redis/v8 v8.4.11
@@ -48,3 +49,5 @@ require (
 )
 
 replace github.com/minio/minio => github.com/brimsec/minio v0.0.0-20201019191454-3c6f24527f6d
+
+replace github.com/fraugster/parquet-go => github.com/brimsec/parquet-go v0.3.1-0.20210225020441-197baae86e9f

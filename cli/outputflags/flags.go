@@ -65,7 +65,7 @@ func (f *Flags) SetFormatFlags(fs *flag.FlagSet) {
 	if f.DefaultFormat == "" {
 		f.DefaultFormat = "zng"
 	}
-	fs.StringVar(&f.Format, "f", f.DefaultFormat, "format for output data [zng,zst,ndjson,table,text,csv,zeek,zjson,zson,tzng]")
+	fs.StringVar(&f.Format, "f", f.DefaultFormat, "format for output data [zng,zst,ndjson,parquet,table,text,csv,zeek,zjson,zson,tzng]")
 	fs.BoolVar(&f.zsonShortcut, "z", false, "use line-oriented zson output independent of -f option")
 	fs.BoolVar(&f.zsonPretty, "Z", false, "use formatted zson output independent of -f option")
 	fs.BoolVar(&f.forceBinary, "B", false, "allow binary zng be sent to a terminal output")
