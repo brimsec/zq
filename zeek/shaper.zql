@@ -54,7 +54,16 @@ type weird={_path:string,ts:time,uid:bstring,id:id,name:bstring,addl:bstring,not
 type x509={_path:string,ts:time,id:bstring,certificate:{version:uint64,serial:bstring,subject:bstring,issuer:bstring,not_valid_before:time,not_valid_after:time,key_alg:bstring,sig_alg:bstring,key_type:bstring,key_length:uint64,exponent:bstring,curve:bstring},san:{dns:[bstring],uri:[bstring],email:[bstring],ip:[ip]},basic_constraints:{ca:bool,path_len:uint64},_write_ts:time};
 
 
-put ts = iso(ts), _write_ts=iso(_write_ts) | put .=unflatten(.)
+put ts=iso(ts), _write_ts=iso(_write_ts)
+   | switch (
+    case _path=ntp => put ref_time=iso(ref_time), org_time=iso(org_time), rec_time=iso(rec_time), xmt_time=iso(xmt_time)
+    case _path=x509 => put certificate.not_valid_before=iso(certificate.not_valid_before), certificate.not_valid_after=iso(certificate.not_valid_after)
+    case _path=smb_files => put times.modified=iso(times.modified), times.accessed=iso(times.accessed), times.created=iso(times.created), times.changed=iso(times.changed)
+    case _path=kerberos => put from=iso(from), till=iso(till)
+    case _path=snmp => put up_since=iso(up_since)
+    case _path=pe => put compile_ts=iso(compile_ts)
+    case * => pass
+   ) | put .=unflatten(.)
    | switch (
     case _path=files => put . = shape(files)
     case _path=http => put . = shape(http)
