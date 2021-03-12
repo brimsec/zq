@@ -13,7 +13,7 @@ jobs:
       - uses: actions/setup-go@v2
         with:
           go-version: '1.15'
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v2
       - run: go mod download
       - run: make fmt
       - run: make tidy
@@ -29,7 +29,7 @@ jobs:
       - uses: actions/setup-go@v2
         with:
           go-version: '1.15'
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v2
       - run: go test -short ./...
       - run: mkdir dist -ea 0
       - run: go build -o dist ./cmd/...
@@ -41,6 +41,6 @@ jobs:
       - uses: actions/setup-go@v2
         with:
           go-version: '1.15'
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v2
       - run: make install
       - run: make z-output-check
